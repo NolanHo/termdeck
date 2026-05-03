@@ -89,23 +89,27 @@ message Run {
   string command = 1;
   uint32 timeout_ms = 2;
   uint32 quiescence_ms = 3;
+  bool strip_ansi = 4;
 }
 
 message Send {
   bytes data = 1;
   uint32 timeout_ms = 2;
   uint32 quiescence_ms = 3;
+  bool strip_ansi = 4;
 }
 
 message Control {
   string key = 1;
   uint32 timeout_ms = 2;
   uint32 quiescence_ms = 3;
+  bool strip_ansi = 4;
 }
 
 message Poll {
   uint32 timeout_ms = 1;
   uint32 quiescence_ms = 2;
+  bool strip_ansi = 3;
 }
 
 message Screen {}
@@ -129,6 +133,7 @@ message Configure {
 message Expect {
   string pattern = 1;
   uint32 timeout_ms = 2;
+  bool strip_ansi = 3;
 }
 
 message Password {
@@ -158,12 +163,14 @@ message ClearScrollback {}
 
 message ExpectPrompt {
   uint32 timeout_ms = 1;
+  bool strip_ansi = 2;
 }
 
 message Signal {
   string signal = 1;
   uint32 timeout_ms = 2;
   uint32 quiescence_ms = 3;
+  bool strip_ansi = 4;
 }
 
 message Resize {

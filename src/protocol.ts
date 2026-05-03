@@ -44,24 +44,24 @@ export type PromptKind = 'shell' | 'python' | 'pdb' | 'none' | 'unknown';
 
 export type Request =
   | { id: number; op: 'new'; session: string; cwd: string; shell?: string; rows?: number; cols?: number; promptRegex?: string }
-  | { id: number; op: 'run'; session: string; command: string; timeoutMs?: number; quiescenceMs?: number }
-  | { id: number; op: 'send'; session: string; data: string; timeoutMs?: number; quiescenceMs?: number }
-  | { id: number; op: 'ctrl'; session: string; key: string; timeoutMs?: number; quiescenceMs?: number }
-  | { id: number; op: 'poll'; session: string; timeoutMs?: number; quiescenceMs?: number }
+  | { id: number; op: 'run'; session: string; command: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
+  | { id: number; op: 'send'; session: string; data: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
+  | { id: number; op: 'ctrl'; session: string; key: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
+  | { id: number; op: 'poll'; session: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'screen'; session: string }
   | { id: number; op: 'scrollback'; session: string; lines?: number }
   | { id: number; op: 'list' }
   | { id: number; op: 'kill'; session: string }
   | { id: number; op: 'subscribe'; session: string; afterSeq?: number }
   | { id: number; op: 'configure'; session: string; promptRegex?: string }
-  | { id: number; op: 'expect'; session: string; pattern: string; timeoutMs?: number }
+  | { id: number; op: 'expect'; session: string; pattern: string; timeoutMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'password'; session: string; secret: string; timeoutMs?: number; quiescenceMs?: number }
   | { id: number; op: 'transcript'; session: string }
   | { id: number; op: 'resize'; session: string; rows: number; cols: number }
   | { id: number; op: 'metadata'; session: string }
   | { id: number; op: 'clearScrollback'; session: string }
-  | { id: number; op: 'expectPrompt'; session: string; timeoutMs?: number }
-  | { id: number; op: 'signal'; session: string; signal: string; timeoutMs?: number; quiescenceMs?: number }
+  | { id: number; op: 'expectPrompt'; session: string; timeoutMs?: number; stripAnsi?: boolean }
+  | { id: number; op: 'signal'; session: string; signal: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'history' }
   | { id: number; op: 'inspect'; session: string }
   | { id: number; op: 'log'; session: string; lines?: number }
@@ -171,13 +171,13 @@ function toPbRequest(req: Request): PbRequest {
     case 'new':
       return create(RequestSchema, { session, op: { case: 'newSession', value: create(NewSessionSchema, { cwd: req.cwd, shell: req.shell ?? '', rows: req.rows ?? 0, cols: req.cols ?? 0, promptRegex: req.promptRegex ?? '' }) } });
     case 'run':
-      return create(RequestSchema, { session, op: { case: 'run', value: create(RunSchema, { command: req.command, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'run', value: create(RunSchema, { command: req.command, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'send':
-      return create(RequestSchema, { session, op: { case: 'send', value: create(SendSchema, { data: enc.encode(req.data), timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'send', value: create(SendSchema, { data: enc.encode(req.data), timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'ctrl':
-      return create(RequestSchema, { session, op: { case: 'control', value: create(ControlSchema, { key: req.key, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'control', value: create(ControlSchema, { key: req.key, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'poll':
-      return create(RequestSchema, { session, op: { case: 'poll', value: create(PollSchema, { timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'poll', value: create(PollSchema, { timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'screen':
       return create(RequestSchema, { session, op: { case: 'screen', value: create(ScreenSchema) } });
     case 'scrollback':
@@ -191,7 +191,7 @@ function toPbRequest(req: Request): PbRequest {
     case 'configure':
       return create(RequestSchema, { session, op: { case: 'configure', value: create(ConfigureSchema, { promptRegex: req.promptRegex ?? '' }) } });
     case 'expect':
-      return create(RequestSchema, { session, op: { case: 'expect', value: create(ExpectSchema, { pattern: req.pattern, timeoutMs: req.timeoutMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'expect', value: create(ExpectSchema, { pattern: req.pattern, timeoutMs: req.timeoutMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'password':
       return create(RequestSchema, { session, op: { case: 'password', value: create(PasswordSchema, { secret: req.secret, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
     case 'transcript':
@@ -203,9 +203,9 @@ function toPbRequest(req: Request): PbRequest {
     case 'clearScrollback':
       return create(RequestSchema, { session, op: { case: 'clearScrollback', value: create(ClearScrollbackSchema) } });
     case 'expectPrompt':
-      return create(RequestSchema, { session, op: { case: 'expectPrompt', value: create(ExpectPromptSchema, { timeoutMs: req.timeoutMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'expectPrompt', value: create(ExpectPromptSchema, { timeoutMs: req.timeoutMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'signal':
-      return create(RequestSchema, { session, op: { case: 'signal', value: create(SignalSchema, { signal: req.signal, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+      return create(RequestSchema, { session, op: { case: 'signal', value: create(SignalSchema, { signal: req.signal, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'history':
       return create(RequestSchema, { op: { case: 'history', value: create(HistorySchema) } });
     case 'inspect':
@@ -223,13 +223,13 @@ function fromPbRequest(id: number, req: PbRequest): Request {
     case 'newSession':
       return withDefined({ id, op: 'new', session, cwd: req.op.value.cwd, shell: req.op.value.shell || undefined, rows: req.op.value.rows || undefined, cols: req.op.value.cols || undefined, promptRegex: req.op.value.promptRegex || undefined }) as Request;
     case 'run':
-      return withDefined({ id, op: 'run', session, command: req.op.value.command, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+      return withDefined({ id, op: 'run', session, command: req.op.value.command, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'send':
-      return withDefined({ id, op: 'send', session, data: dec.decode(req.op.value.data), timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+      return withDefined({ id, op: 'send', session, data: dec.decode(req.op.value.data), timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'control':
-      return withDefined({ id, op: 'ctrl', session, key: req.op.value.key, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+      return withDefined({ id, op: 'ctrl', session, key: req.op.value.key, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'poll':
-      return withDefined({ id, op: 'poll', session, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+      return withDefined({ id, op: 'poll', session, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'screen':
       return { id, op: 'screen', session };
     case 'scrollback':
@@ -243,7 +243,7 @@ function fromPbRequest(id: number, req: PbRequest): Request {
     case 'configure':
       return withDefined({ id, op: 'configure', session, promptRegex: req.op.value.promptRegex || undefined }) as Request;
     case 'expect':
-      return withDefined({ id, op: 'expect', session, pattern: req.op.value.pattern, timeoutMs: req.op.value.timeoutMs || undefined }) as Request;
+      return withDefined({ id, op: 'expect', session, pattern: req.op.value.pattern, timeoutMs: req.op.value.timeoutMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'password':
       return withDefined({ id, op: 'password', session, secret: req.op.value.secret, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
     case 'transcript':
@@ -255,9 +255,9 @@ function fromPbRequest(id: number, req: PbRequest): Request {
     case 'clearScrollback':
       return { id, op: 'clearScrollback', session };
     case 'expectPrompt':
-      return withDefined({ id, op: 'expectPrompt', session, timeoutMs: req.op.value.timeoutMs || undefined }) as Request;
+      return withDefined({ id, op: 'expectPrompt', session, timeoutMs: req.op.value.timeoutMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'signal':
-      return withDefined({ id, op: 'signal', session, signal: req.op.value.signal, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+      return withDefined({ id, op: 'signal', session, signal: req.op.value.signal, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'history':
       return { id, op: 'history' };
     case 'inspect':

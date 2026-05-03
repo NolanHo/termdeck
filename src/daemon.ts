@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { createServer, Socket, type Server as NetServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import type { Duplex } from 'node:stream';
+import stripAnsi from 'strip-ansi';
 import { encodeEvent, FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
+import { socketAccessMode } from './platform.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { TermSession } from './session.js';
 import { webAppJs, webHtml } from './web.js';
@@ -90,8 +92,8 @@ function assertNever(x: never): never {
   throw new Error(`unknown request: ${JSON.stringify(x)}`);
 }
 
-function result(id: number, r: { status: import('./protocol.js').Status; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number }): Response {
-  return { id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars };
+function result(id: number, r: { status: import('./protocol.js').Status; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number }, strip = false): Response {
+  return { id, ok: true, status: r.status, output: strip ? stripAnsi(r.output) : r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars };
 }
 
 function history(): Array<Record<string, unknown>> {
@@ -141,19 +143,19 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'run': {
         const r = await manager.get(req.session).run(req.command, req.timeoutMs, req.quiescenceMs);
-        return result(req.id, r);
+        return result(req.id, r, req.stripAnsi);
       }
       case 'send': {
         const r = await manager.get(req.session).send(req.data, req.timeoutMs, req.quiescenceMs);
-        return result(req.id, r);
+        return result(req.id, r, req.stripAnsi);
       }
       case 'ctrl': {
         const r = await manager.get(req.session).ctrl(req.key, req.timeoutMs, req.quiescenceMs);
-        return result(req.id, r);
+        return result(req.id, r, req.stripAnsi);
       }
       case 'poll': {
         const r = await manager.get(req.session).poll(req.timeoutMs, req.quiescenceMs);
-        return result(req.id, r);
+        return result(req.id, r, req.stripAnsi);
       }
       case 'screen': {
         const s = manager.get(req.session);
@@ -175,7 +177,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'expect': {
         const r = await manager.get(req.session).expect(req.pattern, req.timeoutMs);
-        return { ...result(req.id, r), matched: r.matched };
+        return { ...result(req.id, r, req.stripAnsi), matched: r.matched };
       }
       case 'password': {
         const r = await manager.get(req.session).password(req.secret, req.timeoutMs, req.quiescenceMs);
@@ -201,11 +203,11 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'expectPrompt': {
         const r = await manager.get(req.session).expectPrompt(req.timeoutMs);
-        return { ...result(req.id, r), matched: r.matched };
+        return { ...result(req.id, r, req.stripAnsi), matched: r.matched };
       }
       case 'signal': {
         const r = await manager.get(req.session).signal(req.signal, req.timeoutMs, req.quiescenceMs);
-        return result(req.id, r);
+        return result(req.id, r, req.stripAnsi);
       }
       case 'history':
         return { id: req.id, ok: true, history: history() };
@@ -237,6 +239,7 @@ export async function main(): Promise<void> {
   const server = createDaemonServer();
 
   server.listen(socketPath, () => {
+    chmodSync(socketPath, socketAccessMode());
     console.log(`termdeckd listening on ${socketPath}`);
   });
 

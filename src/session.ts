@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import * as pty from 'node-pty';
 import xtermHeadless from '@xterm/headless';
+import { signalProcessGroup } from './platform.js';
 import { TextRing } from './ring.js';
 import { detectState, type StateResult } from './state.js';
 import type { Event, Status } from './protocol.js';
@@ -156,8 +157,9 @@ export class TermSession extends EventEmitter {
 
   signal(signal: string, timeoutMs = 5_000, quiescenceMs = 1_000): Promise<WaitResult> {
     const mark = this.ring.mark();
-    this.ptyProcess.kill(signal);
+    const sent = signalProcessGroup(this.ptyProcess.pid, signal);
     this.lastActivityAt = new Date().toISOString();
+    this.emitEvent({ kind: 'state', status: this.status().status, reason: sent.detail });
     return this.waitForOutput(mark, timeoutMs, quiescenceMs, false);
   }
 

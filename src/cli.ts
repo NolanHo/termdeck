@@ -98,8 +98,9 @@ program.command('run')
   .argument('<command>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--strip-ansi')
   .action(async (session, command, opts) => {
-    printResponse(await request({ op: 'run', session, command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs }));
+    printResponse(await request({ op: 'run', session, command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
   });
 
 program.command('send')
@@ -107,8 +108,9 @@ program.command('send')
   .argument('<data>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--strip-ansi')
   .action(async (session, data, opts) => {
-    printResponse(await request({ op: 'send', session, data, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs }));
+    printResponse(await request({ op: 'send', session, data, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
   });
 
 program.command('ctrl')
@@ -116,16 +118,18 @@ program.command('ctrl')
   .argument('<key>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--strip-ansi')
   .action(async (session, key, opts) => {
-    printResponse(await request({ op: 'ctrl', session, key, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs }));
+    printResponse(await request({ op: 'ctrl', session, key, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
   });
 
 program.command('poll')
   .argument('<session>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--strip-ansi')
   .action(async (session, opts) => {
-    printResponse(await request({ op: 'poll', session, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs }));
+    printResponse(await request({ op: 'poll', session, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
   });
 
 program.command('screen')
@@ -149,7 +153,8 @@ program.command('expect')
   .argument('<session>')
   .argument('<pattern>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
-  .action(async (session, pattern, opts) => printResponse(await request({ op: 'expect', session, pattern, timeoutMs: opts.timeoutMs })));
+  .option('--strip-ansi')
+  .action(async (session, pattern, opts) => printResponse(await request({ op: 'expect', session, pattern, timeoutMs: opts.timeoutMs, stripAnsi: opts.stripAnsi })));
 
 program.command('password')
   .argument('<session>')
@@ -199,14 +204,16 @@ program.command('clear-scrollback')
 program.command('expect-prompt')
   .argument('<session>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
-  .action(async (session, opts) => printResponse(await request({ op: 'expectPrompt', session, timeoutMs: opts.timeoutMs })));
+  .option('--strip-ansi')
+  .action(async (session, opts) => printResponse(await request({ op: 'expectPrompt', session, timeoutMs: opts.timeoutMs, stripAnsi: opts.stripAnsi })));
 
 program.command('signal')
   .argument('<session>')
   .argument('<signal>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
-  .action(async (session, signal, opts) => printResponse(await request({ op: 'signal', session, signal, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs })));
+  .option('--strip-ansi')
+  .action(async (session, signal, opts) => printResponse(await request({ op: 'signal', session, signal, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi })));
 
 program.command('kill')
   .argument('<session>')
