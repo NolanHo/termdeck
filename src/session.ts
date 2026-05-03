@@ -34,6 +34,8 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   delete next.NPM_CONFIG_PREFIX;
   delete next.npm_config_verify_deps_before_run;
   next.TERM = 'xterm-256color';
+  next.NPM_CONFIG_LOGLEVEL = 'error';
+  next.npm_config_loglevel = 'error';
   delete next.TMUX;
   delete next.TMUX_PANE;
   return next;
