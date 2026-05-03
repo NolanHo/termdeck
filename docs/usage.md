@@ -1,6 +1,6 @@
 # TermDeck Usage Guide
 
-This guide describes operational use of TermDeck on Linux.
+This guide describes operational use of TermDeck on Linux. See [Scenarios](scenarios.md) for task-oriented examples.
 
 ## Mental model
 

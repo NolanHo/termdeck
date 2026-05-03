@@ -46,6 +46,7 @@ only-built-dependencies[]=node-pty
 ## 文档
 
 - [使用文档](docs/usage.md)
+- [场景文档](docs/scenarios.md)
 - [English README](README.md)
 
 ## 快速开始

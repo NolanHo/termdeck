@@ -46,6 +46,7 @@ The package postinstall check fails fast if the native binding is missing.
 ## Documentation
 
 - [Usage Guide](docs/usage.md)
+- [Scenarios](docs/scenarios.md)
 - [Chinese README](README_zh.md)
 
 ## Quick start
