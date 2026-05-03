@@ -41,6 +41,8 @@ message Request {
     Log log = 31;
     Events events = 32;
     Replay replay = 33;
+    Script script = 34;
+    Paste paste = 35;
   }
 }
 
@@ -98,6 +100,22 @@ message Send {
   uint32 timeout_ms = 2;
   uint32 quiescence_ms = 3;
   bool strip_ansi = 4;
+}
+
+message Script {
+  bytes data = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+  bool strip_ansi = 4;
+  string shell = 5;
+}
+
+message Paste {
+  bytes data = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+  bool strip_ansi = 4;
+  bool enter = 5;
 }
 
 message Control {

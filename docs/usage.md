@@ -119,6 +119,20 @@ termdeck send main 'echo partial'
 termdeck ctrl main m
 ```
 
+Run a script block without changing the persistent shell state:
+
+```bash
+termdeck script main --inline 'printf "HOST=%s\n" "$(hostname)"; df -h /' --timeout-ms 30000 --strip-ansi
+```
+
+Paste text into the active terminal using bracketed paste:
+
+```bash
+termdeck paste main --inline 'printf paste-ok' --enter --timeout-ms 5000 --strip-ansi
+```
+
+Use `run` for one interactive shell command whose side effects should persist. Use `script` for multiline diagnostics or complex quoting. Use `paste` for REPL/editor/TUI input.
+
 Common control keys:
 
 ```bash

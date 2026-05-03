@@ -150,6 +150,14 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         const r = await manager.get(req.session).send(req.data, req.timeoutMs, req.quiescenceMs);
         return result(req.id, r, req.stripAnsi);
       }
+      case 'script': {
+        const r = await manager.get(req.session).script(req.data, req.timeoutMs, req.quiescenceMs, req.shell);
+        return result(req.id, r, req.stripAnsi);
+      }
+      case 'paste': {
+        const r = await manager.get(req.session).paste(req.data, req.enter, req.timeoutMs, req.quiescenceMs);
+        return result(req.id, r, req.stripAnsi);
+      }
       case 'ctrl': {
         const r = await manager.get(req.session).ctrl(req.key, req.timeoutMs, req.quiescenceMs);
         return result(req.id, r, req.stripAnsi);

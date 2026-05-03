@@ -233,7 +233,36 @@ Create future sessions with the regex:
 termdeck new main --cwd /repo --prompt-regex '^.*my-prompt>\s*$'
 ```
 
-## 11. Environment and cwd persistence
+## 11. Multiline diagnostics
+
+Use `script` for multiline commands, nested quotes, or diagnostics that do not need to mutate the persistent shell.
+
+```bash
+termdeck script main --inline '
+printf "HOST=%s USER=%s PWD=%s\n" "$(hostname)" "$(whoami)" "$PWD"
+uname -srmo
+uptime -p
+free -h
+df -h /
+ps -eo pid,ppid,stat,pcpu,pmem,comm --sort=-pcpu | head -10
+' --timeout-ms 30000 --quiescence-ms 500 --strip-ansi
+```
+
+`script` writes a temporary heredoc script in the active terminal and runs it with `bash` by default. It reports a `__TERMDECK_EXIT:<code>__` marker in output. Use `--shell <shell>` if the script needs another interpreter.
+
+Do not use `script` for state that must persist in the interactive shell. Use `run` for `cd`, `export`, aliases, or shell functions.
+
+## 12. Pasting into REPLs and editors
+
+Use `paste` for long text input to REPLs, editors, or TUIs.
+
+```bash
+termdeck paste py --inline 'for i in range(3):\n    print(i)' --enter
+```
+
+`paste` uses bracketed paste. With `--enter`, TermDeck submits the pasted text after paste end.
+
+## 13. Environment and cwd persistence
 
 A session behaves like a human terminal. State persists inside that shell.
 
@@ -251,7 +280,7 @@ termdeck new api --cwd /repo/api
 termdeck new web --cwd /repo/web
 ```
 
-## 12. Web observer for humans
+## 14. Web observer for humans
 
 Start the daemon with a web port:
 
@@ -273,7 +302,7 @@ ssh -L 8787:127.0.0.1:8787 user@host
 
 The web UI shows output and reconnects using event sequence numbers. It does not accept terminal input.
 
-## 13. Historical audit and replay
+## 15. Historical audit and replay
 
 After a task finishes, inspect artifacts without re-running commands.
 
@@ -293,7 +322,7 @@ Use cases:
 - reconstruct a terminal screen after daemon restart
 - compare command log with raw transcript
 
-## 14. Failure recovery
+## 16. Failure recovery
 
 If the daemon is not running:
 

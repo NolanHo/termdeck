@@ -1,5 +1,4 @@
 import { appendFileSync, createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { Buffer } from 'node:buffer';
 import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import * as pty from 'node-pty';
@@ -37,20 +36,6 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return next;
 }
 
-
-function encodeScriptCommand(command: string): string {
-  if (!needsScriptWrapper(command)) return command;
-  const script = Buffer.from(command, 'utf8').toString('base64');
-  return `printf %s ${shellQuote(script)} | base64 -d | bash`;
-}
-
-function needsScriptWrapper(command: string): boolean {
-  return command.includes('\n') || command.length > 180 || /["'`]/.test(command);
-}
-
-function shellQuote(s: string): string {
-  return `'${s.replace(/'/g, `'\''`)}'`;
-}
 
 function controlChar(key: string): string {
   const k = key.toLowerCase();
@@ -160,11 +145,26 @@ export class TermSession extends EventEmitter {
   }
 
   run(command: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
-    return this.writeAndWait(`${encodeScriptCommand(command)}\r`, timeoutMs, quiescenceMs, true);
+    return this.writeAndWait(`${command}\r`, timeoutMs, quiescenceMs, true);
   }
 
   send(data: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
     return this.writeAndWait(data, timeoutMs, quiescenceMs, true);
+  }
+
+
+  script(data: string, timeoutMs = 30_000, quiescenceMs = 1_000, shell = 'bash'): Promise<WaitResult> {
+    const delimiter = `TERMDECK_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    if (data.includes(delimiter)) throw new Error('script contains generated heredoc delimiter');
+    const command = `cat > /tmp/${delimiter}.sh <<'${delimiter}'
+${data}
+${delimiter}
+${shell} /tmp/${delimiter}.sh; rc=$?; rm -f /tmp/${delimiter}.sh; printf '\n__TERMDECK_EXIT:%s__\n' "$rc"`;
+    return this.paste(command, true, timeoutMs, quiescenceMs);
+  }
+
+  paste(data: string, enter = false, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
+    return this.writeAndWait(`\x1b[200~${data}\x1b[201~${enter ? '\r' : ''}`, timeoutMs, quiescenceMs, true);
   }
 
   ctrl(key: string, timeoutMs = 5_000, quiescenceMs = 1_000): Promise<WaitResult> {

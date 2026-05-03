@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { Command } from 'commander';
 import { FrameReader, writeFrame, type Request, type RequestInput, type Response } from './protocol.js';
@@ -125,6 +126,36 @@ program.command('send')
   .option('--json')
   .action(async (session, data, opts) => {
     printResponse(await request({ op: 'send', session, data, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
+  });
+
+program.command('script')
+  .argument('<session>')
+  .argument('[file]')
+  .option('--inline <script>')
+  .option('--shell <shell>', 'script shell', 'bash')
+  .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--strip-ansi')
+  .option('--raw')
+  .option('--json')
+  .action(async (session, file, opts) => {
+    const data = opts.inline ?? (file ? readFileSync(file, 'utf8') : readFileSync(0, 'utf8'));
+    printResponse(await request({ op: 'script', session, data, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi, shell: opts.shell }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
+  });
+
+program.command('paste')
+  .argument('<session>')
+  .argument('[file]')
+  .option('--inline <text>')
+  .option('--enter')
+  .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--strip-ansi')
+  .option('--raw')
+  .option('--json')
+  .action(async (session, file, opts) => {
+    const data = opts.inline ?? (file ? readFileSync(file, 'utf8') : readFileSync(0, 'utf8'));
+    printResponse(await request({ op: 'paste', session, data, enter: opts.enter, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
   });
 
 program.command('ctrl')

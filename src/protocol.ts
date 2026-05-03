@@ -20,6 +20,7 @@ import {
   MetadataSchema,
   NewSessionSchema,
   PasswordSchema,
+  PasteSchema,
   PollSchema,
   ReplaySchema,
   RequestSchema,
@@ -28,6 +29,7 @@ import {
   RunSchema,
   ScreenSchema,
   ScrollbackSchema,
+  ScriptSchema,
   SendSchema,
   SessionInfoSchema,
   SignalSchema,
@@ -41,12 +43,14 @@ import {
 } from './gen/termdeck/v1/termdeck_pb.js';
 
 export type Status = 'running' | 'ready' | 'repl' | 'password' | 'confirm' | 'editor' | 'pager' | 'eof' | 'unknown';
-export type PromptKind = 'shell' | 'python' | 'pdb' | 'editor' | 'none' | 'unknown';
+export type PromptKind = 'shell' | 'python' | 'pdb' | 'editor' | 'continuation' | 'none' | 'unknown';
 
 export type Request =
   | { id: number; op: 'new'; session: string; cwd: string; shell?: string; rows?: number; cols?: number; promptRegex?: string }
   | { id: number; op: 'run'; session: string; command: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'send'; session: string; data: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
+  | { id: number; op: 'script'; session: string; data: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean; shell?: string }
+  | { id: number; op: 'paste'; session: string; data: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean; enter?: boolean }
   | { id: number; op: 'ctrl'; session: string; key: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'poll'; session: string; timeoutMs?: number; quiescenceMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'screen'; session: string }
@@ -176,6 +180,10 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { session, op: { case: 'run', value: create(RunSchema, { command: req.command, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'send':
       return create(RequestSchema, { session, op: { case: 'send', value: create(SendSchema, { data: enc.encode(req.data), timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
+    case 'script':
+      return create(RequestSchema, { session, op: { case: 'script', value: create(ScriptSchema, { data: enc.encode(req.data), timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false, shell: req.shell ?? '' }) } });
+    case 'paste':
+      return create(RequestSchema, { session, op: { case: 'paste', value: create(PasteSchema, { data: enc.encode(req.data), timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false, enter: req.enter ?? false }) } });
     case 'ctrl':
       return create(RequestSchema, { session, op: { case: 'control', value: create(ControlSchema, { key: req.key, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0, stripAnsi: req.stripAnsi ?? false }) } });
     case 'poll':
@@ -230,6 +238,10 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return withDefined({ id, op: 'run', session, command: req.op.value.command, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'send':
       return withDefined({ id, op: 'send', session, data: dec.decode(req.op.value.data), timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
+    case 'script':
+      return withDefined({ id, op: 'script', session, data: dec.decode(req.op.value.data), timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined, shell: req.op.value.shell || undefined }) as Request;
+    case 'paste':
+      return withDefined({ id, op: 'paste', session, data: dec.decode(req.op.value.data), timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined, enter: req.op.value.enter || undefined }) as Request;
     case 'control':
       return withDefined({ id, op: 'ctrl', session, key: req.op.value.key, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined, stripAnsi: req.op.value.stripAnsi || undefined }) as Request;
     case 'poll':

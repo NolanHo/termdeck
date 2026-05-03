@@ -42,6 +42,14 @@ test('detects editor markers', () => {
   });
 });
 
+test('detects shell continuation prompt', () => {
+  assert.deepEqual(detectState('bash$ printf "unterminated\n> '), {
+    status: 'running',
+    reason: 'shell continuation prompt',
+    prompt: 'continuation',
+  });
+});
+
 test('falls back to running when no prompt matches', () => {
   assert.equal(detectState('building\nstep 1').status, 'running');
 });
