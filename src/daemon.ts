@@ -323,6 +323,7 @@ function startWebServer(): HttpServer {
   });
 
   server.on('upgrade', (req, socket) => handleWebSocketUpgrade(req, socket));
+  server.on('error', (err) => console.error(`termdeck web error: ${err instanceof Error ? err.message : String(err)}`));
   server.listen(port, '127.0.0.1', () => console.log(`termdeck web listening on http://127.0.0.1:${port}`));
   return server;
 }

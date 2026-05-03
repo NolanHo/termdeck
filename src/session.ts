@@ -1,5 +1,6 @@
 import { appendFileSync, createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
+import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import * as pty from 'node-pty';
 import xtermHeadless from '@xterm/headless';
@@ -92,8 +93,8 @@ export class TermSession extends EventEmitter {
     this.loadEvents();
     this.term = new Terminal({ rows: this.rows, cols: this.cols, allowProposedApi: true });
 
-    this.shell = opts.shell || 'bash';
-    this.shellArgs = opts.shell ? [] : ['--noprofile', '--norc'];
+    this.shell = opts.shell || userInfo().shell || process.env.SHELL || 'bash';
+    this.shellArgs = [];
     this.ptyProcess = pty.spawn(this.shell, this.shellArgs, {
       name: 'xterm-256color',
       cols: this.cols,
