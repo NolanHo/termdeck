@@ -75,7 +75,7 @@ Poll new output:
 termdeck poll main --quiescence-ms 200
 ```
 
-Read the rendered screen:
+Read the rendered screen as plain text:
 
 ```bash
 termdeck screen main
@@ -87,6 +87,8 @@ Open the observe-only web UI:
 TERMDECK_WEB_PORT=8787 termdeckd
 # browse http://127.0.0.1:8787
 ```
+
+The CLI defaults to agent-readable text. `--raw` prints PTY bytes for debugging. Web rendering uses serialized xterm state and raw live events.
 
 ## CLI commands
 

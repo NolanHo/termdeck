@@ -59,6 +59,7 @@ let currentSession;
 let lastSeq = 0;
 let reconnectTimer;
 let refreshTimer;
+let resizeTimer;
 
 async function refreshSessions() {
   const res = await fetch('/api/sessions');
@@ -94,7 +95,10 @@ async function openSession(id) {
   if (snap.snapshot) term.write(snap.snapshot);
   status.textContent = snap.status ? id + ' ' + snap.status + ' seq=' + lastSeq : 'observing ' + id;
   connectEvents(id);
-  setTimeout(() => fit.fit(), 0);
+  setTimeout(() => {
+    fit.fit();
+    sendResize();
+  }, 0);
 }
 
 function closeSession() {
@@ -109,22 +113,31 @@ function closeSession() {
 function connectEvents(id, replayTargetSeq = 0) {
   clearTimeout(reconnectTimer);
   fit.fit();
-  ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq + '&rows=' + term.rows + '&cols=' + term.cols);
+  ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => { status.textContent = 'observing ' + id + ' seq=' + lastSeq; };
-  ws.onmessage = (msg) => {
-    const event = decodeEvent(new Uint8Array(msg.data));
-    if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
-    if (event.kind === 'output') term.write(event.data);
-    if (event.kind === 'state') status.textContent = id + ' ' + event.status + ' seq=' + lastSeq;
-    if (event.kind === 'exit') status.textContent = id + ' exited seq=' + lastSeq;
-    if (replayTargetSeq && lastSeq >= replayTargetSeq) status.textContent = 'observing ' + id + ' seq=' + lastSeq;
-  };
+  ws.onmessage = handleEventMessage;
   ws.onclose = () => {
     if (currentSession !== id) return;
     status.textContent = 'disconnected seq=' + lastSeq;
     reconnectTimer = setTimeout(() => connectEvents(id), 1000);
   };
+}
+
+function handleEventMessage(msg) {
+  const event = decodeEvent(new Uint8Array(msg.data));
+  if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
+  if (event.kind === 'output') term.write(event.data);
+  if (event.kind === 'state') status.textContent = currentSession + ' ' + event.status + ' seq=' + lastSeq;
+  if (event.kind === 'exit') status.textContent = currentSession + ' exited seq=' + lastSeq;
+}
+
+function sendResize() {
+  if (!currentSession || !ws || ws.readyState !== WebSocket.OPEN || term.rows <= 0 || term.cols <= 0) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    ws.send(JSON.stringify({ op: 'resize', rows: term.rows, cols: term.cols }));
+  }, 100);
 }
 
 function decodeEvent(buf) {
@@ -189,10 +202,7 @@ function skip(r, wire) {
 
 window.addEventListener('resize', () => {
   fit.fit();
-  if (currentSession && ws) {
-    ws.close();
-    connectEvents(currentSession);
-  }
+  sendResize();
 });
 refreshSessions();
 refreshTimer = setInterval(refreshSessions, 3000);

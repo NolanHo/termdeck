@@ -121,6 +121,8 @@ Run a script block without changing the persistent shell state:
 termdeck script main --inline 'printf "HOST=%s\n" "$(hostname)"; df -h /' --timeout-ms 30000
 ```
 
+The terminal transcript and Web UI show the pasted heredoc wrapper. The CLI response filters that wrapper and prints only output between TermDeck's begin and exit sentinels. `--json` includes `exitCode` when the script reaches the exit sentinel.
+
 Paste text into the active terminal using bracketed paste:
 
 ```bash
@@ -203,17 +205,19 @@ List active sessions:
 termdeck list
 ```
 
-Read the rendered screen:
+Read the rendered screen as plain text:
 
 ```bash
 termdeck screen main
 ```
 
-Read scrollback:
+Read scrollback as plain text:
 
 ```bash
 termdeck scrollback main --lines 200
 ```
+
+`screen` and `scrollback` serve agent inspection. They strip terminal state to text. The Web UI renders serialized xterm state plus live raw PTY events from the daemon.
 
 Read metadata:
 

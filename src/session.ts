@@ -24,7 +24,7 @@ export type SessionOptions = {
   description?: string;
 };
 
-export type WaitResult = { output: string; status: Status; timedOut: boolean; outputTruncated: boolean; droppedChars: number };
+export type WaitResult = { output: string; status: Status; timedOut: boolean; outputTruncated: boolean; droppedChars: number; exitCode?: number };
 
 function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const next = { ...env };
@@ -43,6 +43,18 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return next;
 }
 
+
+
+function filterScriptResult(r: WaitResult, begin: string, endPrefix: string): WaitResult {
+  const beginAt = r.output.indexOf(begin);
+  const endAt = r.output.indexOf(endPrefix, beginAt + begin.length);
+  if (beginAt === -1 || endAt === -1) return r;
+  const afterEnd = r.output.indexOf('__', endAt + endPrefix.length);
+  const codeText = afterEnd === -1 ? undefined : r.output.slice(endAt + endPrefix.length, afterEnd);
+  const output = r.output.slice(beginAt + begin.length, endAt).replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+  const exitCode = codeText === undefined ? undefined : Number(codeText);
+  return { ...r, output, exitCode: Number.isFinite(exitCode) ? exitCode : undefined };
+}
 
 function controlChar(key: string): string {
   const k = key.toLowerCase();
@@ -163,14 +175,16 @@ export class TermSession extends EventEmitter {
   }
 
 
-  script(data: string, timeoutMs = 30_000, quiescenceMs = 1_000, shell = 'bash'): Promise<WaitResult> {
+  async script(data: string, timeoutMs = 30_000, quiescenceMs = 1_000, shell = 'bash'): Promise<WaitResult> {
     const delimiter = `TERMDECK_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     if (data.includes(delimiter)) throw new Error('script contains generated heredoc delimiter');
+    const begin = `__TERMDECK_BEGIN:${delimiter}__`;
+    const end = `__TERMDECK_EXIT:${delimiter}:`;
     const command = `cat > /tmp/${delimiter}.sh <<'${delimiter}'
 ${data}
 ${delimiter}
-${shell} /tmp/${delimiter}.sh; rc=$?; rm -f /tmp/${delimiter}.sh; printf '\n__TERMDECK_EXIT:%s__\n' "$rc"`;
-    return this.paste(command, true, timeoutMs, quiescenceMs);
+printf '\n__TERMDECK_BEGIN:%s__\n' '${delimiter}'; ${shell} /tmp/${delimiter}.sh; rc=$?; rm -f /tmp/${delimiter}.sh; printf '\n__TERMDECK_EXIT:%s:%s__\n' '${delimiter}' "$rc"`;
+    return filterScriptResult(await this.paste(command, true, timeoutMs, quiescenceMs), begin, end);
   }
 
   paste(data: string, enter = false, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {

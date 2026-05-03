@@ -64,6 +64,7 @@ message Response {
   string history_json = 15;
   string log_text = 16;
   string events_text = 17;
+  optional int32 exit_code = 18;
 }
 
 message Event {

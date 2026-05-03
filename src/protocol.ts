@@ -90,6 +90,7 @@ export type Response = {
   prompt?: PromptKind;
   outputTruncated?: boolean;
   droppedChars?: number;
+  exitCode?: number;
   metadata?: Record<string, unknown>;
   history?: Array<Record<string, unknown>>;
   logText?: string;
@@ -311,6 +312,7 @@ function toPbResponse(res: Response): PbResponse {
     historyJson: res.history ? JSON.stringify(res.history) : '',
     logText: res.logText ?? '',
     eventsText: res.eventsText ?? '',
+    exitCode: res.exitCode,
     sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
@@ -326,6 +328,7 @@ function fromPbResponse(id: number, res: PbResponse): Response {
   if (res.prompt) out.prompt = res.prompt as PromptKind;
   if (res.outputTruncated) out.outputTruncated = res.outputTruncated;
   if (res.droppedChars) out.droppedChars = Number(res.droppedChars);
+  if (res.exitCode !== undefined) out.exitCode = res.exitCode;
   if (res.metadataJson) out.metadata = JSON.parse(res.metadataJson) as Record<string, unknown>;
   if (res.historyJson) out.history = JSON.parse(res.historyJson) as Array<Record<string, unknown>>;
   if (res.logText) out.logText = res.logText;

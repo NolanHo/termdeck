@@ -75,7 +75,7 @@ termdeck run main 'pwd && ls' --timeout-ms 5000
 termdeck poll main --quiescence-ms 200
 ```
 
-读取渲染后的屏幕：
+以纯文本读取渲染后的屏幕：
 
 ```bash
 termdeck screen main
@@ -87,6 +87,8 @@ termdeck screen main
 TERMDECK_WEB_PORT=8787 termdeckd
 # 访问 http://127.0.0.1:8787
 ```
+
+CLI 默认输出适合 agent 读取的文本。`--raw` 输出 PTY 原始字节用于调试。Web 使用序列化 xterm 状态和实时原始事件渲染。
 
 ## CLI 命令
 

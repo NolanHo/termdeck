@@ -94,8 +94,8 @@ function assertNever(x: never): never {
   throw new Error(`unknown request: ${JSON.stringify(x)}`);
 }
 
-function result(id: number, r: { status: import('./protocol.js').Status; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number }, strip = false): Response {
-  return { id, ok: true, status: r.status, output: strip ? stripAnsi(r.output) : r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars };
+function result(id: number, r: { status: import('./protocol.js').Status; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number; exitCode?: number }, strip = false): Response {
+  return { id, ok: true, status: r.status, output: strip ? stripAnsi(r.output) : r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars, exitCode: r.exitCode };
 }
 
 function history(): Array<Record<string, unknown>> {
@@ -303,35 +303,36 @@ async function removeStaleSocket(): Promise<void> {
 
 function startWebServer(): HttpServer {
   const port = Number(process.env.TERMDECK_WEB_PORT ?? 8765);
-  const server = createHttpServer((req, res) => {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
-    try {
-      if (url.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', webHtml);
-      if (url.pathname === '/app.js') return send(res, 200, 'text/javascript; charset=utf-8', webAppJs);
-      if (url.pathname === '/xterm.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermJsPath));
-      if (url.pathname === '/xterm.css') return send(res, 200, 'text/css; charset=utf-8', readFileSync(xtermCssPath));
-      if (url.pathname === '/xterm-addon-fit.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermFitPath));
-      if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
-      const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
-      if (screenMatch) {
-        const s = manager.get(decodeURIComponent(screenMatch[1]));
-        return send(res, 200, 'application/json', JSON.stringify({ screen: s.screen(), status: s.status().status, lastSeq: s.info().lastSeq }));
-      }
-      const snapshotMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/snapshot$/);
-      if (snapshotMatch) {
-        const s = manager.get(decodeURIComponent(snapshotMatch[1]));
-        return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols, snapshot: s.snapshot() }));
-      }
-      send(res, 404, 'text/plain; charset=utf-8', 'not found');
-    } catch (err) {
-      send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err));
-    }
-  });
-
+  const server = createHttpServer((req, res) => handleWebRequest(req, res));
   server.on('upgrade', (req, socket) => handleWebSocketUpgrade(req, socket));
   server.on('error', (err) => console.error(`termdeck web error: ${err instanceof Error ? err.message : String(err)}`));
   server.listen(port, '127.0.0.1', () => console.log(`termdeck web listening on http://127.0.0.1:${port}`));
   return server;
+}
+
+function handleWebRequest(req: IncomingMessage, res: { writeHead(code: number, headers: Record<string, string>): void; end(body: string | Buffer): void }): void {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+  try {
+    if (url.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', webHtml);
+    if (url.pathname === '/app.js') return send(res, 200, 'text/javascript; charset=utf-8', webAppJs);
+    if (url.pathname === '/xterm.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermJsPath));
+    if (url.pathname === '/xterm.css') return send(res, 200, 'text/css; charset=utf-8', readFileSync(xtermCssPath));
+    if (url.pathname === '/xterm-addon-fit.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermFitPath));
+    if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
+    const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
+    if (screenMatch) {
+      const s = manager.get(decodeURIComponent(screenMatch[1]));
+      return send(res, 200, 'application/json', JSON.stringify({ screen: s.screen(), status: s.status().status, lastSeq: s.info().lastSeq }));
+    }
+    const snapshotMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/snapshot$/);
+    if (snapshotMatch) {
+      const s = manager.get(decodeURIComponent(snapshotMatch[1]));
+      return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols, snapshot: s.snapshot() }));
+    }
+    send(res, 404, 'text/plain; charset=utf-8', 'not found');
+  } catch (err) {
+    send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err));
+  }
 }
 
 function send(res: { writeHead(code: number, headers: Record<string, string>): void; end(body: string | Buffer): void }, code: number, contentType: string, body: string | Buffer): void {
@@ -358,16 +359,58 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
   const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${accept}`, '', ''].join('\r\n'));
   const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0);
-  const rows = Number(url.searchParams.get('rows') ?? 0);
-  const cols = Number(url.searchParams.get('cols') ?? 0);
   const s = manager.get(session);
-  if (rows > 0 && cols > 0 && (s.rows !== rows || s.cols !== cols)) s.resize(rows, cols);
+  socket.on('data', (chunk: Buffer) => {
+    try {
+      handleWebSocketData(chunk, s);
+    } catch (err) {
+      console.error(`termdeck websocket input error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
   const onEvent = (event: Event) => {
     if (event.session === session) socket.write(wsBinary(encodeEvent(event)));
   };
   for (const event of s.eventsAfter(afterSeq)) socket.write(wsBinary(encodeEvent(event)));
   s.on('event', onEvent);
   socket.on('close', () => s.off('event', onEvent));
+}
+
+function handleWebSocketData(chunk: Buffer, s: TermSession): void {
+  let offset = 0;
+  while (offset < chunk.length) {
+    const frame = readWebSocketFrame(chunk, offset);
+    if (!frame) return;
+    offset = frame.next;
+    if (frame.opcode !== 1) continue;
+    const msg = JSON.parse(frame.payload.toString('utf8')) as { op?: string; rows?: number; cols?: number };
+    if (msg.op !== 'resize' || !msg.rows || !msg.cols) continue;
+    s.resize(msg.rows, msg.cols);
+  }
+}
+
+function readWebSocketFrame(buf: Buffer, offset: number): { opcode: number; payload: Buffer; next: number } | undefined {
+  if (buf.length - offset < 2) return undefined;
+  const opcode = buf[offset] & 0x0f;
+  const masked = (buf[offset + 1] & 0x80) !== 0;
+  let len = buf[offset + 1] & 0x7f;
+  let pos = offset + 2;
+  if (len === 126) {
+    if (buf.length - pos < 2) return undefined;
+    len = buf.readUInt16BE(pos);
+    pos += 2;
+  } else if (len === 127) {
+    if (buf.length - pos < 8) return undefined;
+    const bigLen = buf.readBigUInt64BE(pos);
+    if (bigLen > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('websocket frame too large');
+    len = Number(bigLen);
+    pos += 8;
+  }
+  const mask = masked ? buf.subarray(pos, pos + 4) : undefined;
+  if (masked) pos += 4;
+  if (buf.length - pos < len) return undefined;
+  const payload = Buffer.from(buf.subarray(pos, pos + len));
+  if (mask) for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4];
+  return { opcode, payload, next: pos + len };
 }
 
 function wsBinary(payload: Buffer): Buffer {
