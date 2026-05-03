@@ -120,6 +120,11 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       case 'kill':
         manager.kill(req.session);
         return { id: req.id, ok: true, status: 'eof' };
+      case 'configure': {
+        const s = manager.get(req.session);
+        s.configure(req.promptRegex);
+        return { id: req.id, ok: true, status: s.status().status };
+      }
       default: {
         if (req.op === 'subscribe') {
           if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };

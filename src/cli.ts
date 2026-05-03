@@ -99,6 +99,11 @@ program.command('scrollback')
 program.command('list')
   .action(async () => printResponse(await request({ op: 'list' })));
 
+program.command('configure')
+  .argument('<session>')
+  .option('--prompt-regex <regex>')
+  .action(async (session, opts) => printResponse(await request({ op: 'configure', session, promptRegex: opts.promptRegex })));
+
 program.command('kill')
   .argument('<session>')
   .action(async (session) => printResponse(await request({ op: 'kill', session })));

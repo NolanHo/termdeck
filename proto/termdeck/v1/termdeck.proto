@@ -27,6 +27,7 @@ message Request {
     ListSessions list_sessions = 17;
     Kill kill = 18;
     Subscribe subscribe = 19;
+    Configure configure = 20;
   }
 }
 
@@ -100,6 +101,10 @@ message Subscribe {
   uint64 after_seq = 1;
 }
 
+message Configure {
+  string prompt_regex = 1;
+}
+
 message Resize {
   uint32 rows = 1;
   uint32 cols = 2;
@@ -122,4 +127,5 @@ message SessionInfo {
   uint32 cols = 4;
   string status = 5;
   uint64 last_seq = 6;
+  string prompt_regex = 7;
 }

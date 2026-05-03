@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import type { Socket } from 'node:net';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import {
+  ConfigureSchema,
   ControlSchema,
   EnvelopeSchema,
   EventSchema,
@@ -38,7 +39,8 @@ export type Request =
   | { id: number; op: 'scrollback'; session: string; lines?: number }
   | { id: number; op: 'list' }
   | { id: number; op: 'kill'; session: string }
-  | { id: number; op: 'subscribe'; session: string; afterSeq?: number };
+  | { id: number; op: 'subscribe'; session: string; afterSeq?: number }
+  | { id: number; op: 'configure'; session: string; promptRegex?: string };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -50,7 +52,7 @@ export type Response = {
   output?: string;
   screen?: string;
   timedOut?: boolean;
-  sessions?: Array<{ id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number }>;
+  sessions?: Array<{ id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number; promptRegex?: string }>;
   lastSeq?: number;
 };
 
@@ -148,6 +150,8 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { session, op: { case: 'kill', value: create(KillSchema) } });
     case 'subscribe':
       return create(RequestSchema, { session, op: { case: 'subscribe', value: create(SubscribeSchema, { afterSeq: BigInt(req.afterSeq ?? 0) }) } });
+    case 'configure':
+      return create(RequestSchema, { session, op: { case: 'configure', value: create(ConfigureSchema, { promptRegex: req.promptRegex ?? '' }) } });
   }
 }
 
@@ -174,6 +178,8 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return { id, op: 'kill', session };
     case 'subscribe':
       return { id, op: 'subscribe', session, afterSeq: Number(req.op.value.afterSeq) };
+    case 'configure':
+      return withDefined({ id, op: 'configure', session, promptRegex: req.op.value.promptRegex || undefined }) as Request;
     default:
       throw new Error('empty request op');
   }
@@ -192,12 +198,12 @@ function toPbResponse(res: Response): PbResponse {
     screen: res.screen ?? '',
     timedOut: res.timedOut ?? false,
     lastSeq: BigInt(res.lastSeq ?? 0),
-    sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq) })),
+    sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
 
 function fromPbResponse(id: number, res: PbResponse): Response {
-  const out: Response = { id, ok: res.ok, timedOut: res.timedOut, lastSeq: Number(res.lastSeq), sessions: res.sessions.map((s) => ({ id: s.id, cwd: s.cwd, rows: s.rows, cols: s.cols, status: s.status as Status, lastSeq: Number(s.lastSeq) })) };
+  const out: Response = { id, ok: res.ok, timedOut: res.timedOut, lastSeq: Number(res.lastSeq), sessions: res.sessions.map((s) => withDefined({ id: s.id, cwd: s.cwd, rows: s.rows, cols: s.cols, status: s.status as Status, lastSeq: Number(s.lastSeq), promptRegex: s.promptRegex || undefined }) as { id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number; promptRegex?: string }) };
   if (res.error) out.error = res.error;
   if (res.status) out.status = res.status as Status;
   if (res.output) out.output = res.output;

@@ -45,7 +45,7 @@ export class TermSession extends EventEmitter {
   readonly cwd: string;
   readonly rows: number;
   readonly cols: number;
-  readonly promptRegex?: string;
+  promptRegex?: string;
   private readonly ptyProcess: pty.IPty;
   private readonly term: InstanceType<typeof Terminal>;
   private readonly ring = new TextRing();
@@ -90,8 +90,8 @@ export class TermSession extends EventEmitter {
     });
   }
 
-  info(): { id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number } {
-    return { id: this.id, cwd: this.cwd, rows: this.rows, cols: this.cols, status: this.status().status, lastSeq: this.seq };
+  info(): { id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number; promptRegex?: string } {
+    return { id: this.id, cwd: this.cwd, rows: this.rows, cols: this.cols, status: this.status().status, lastSeq: this.seq, promptRegex: this.promptRegex };
   }
 
   status(): { status: Status; reason: string } {
@@ -140,6 +140,12 @@ export class TermSession extends EventEmitter {
 
   eventsAfter(seq: number): Event[] {
     return this.events.filter((e) => e.seq > seq);
+  }
+
+  configure(promptRegex?: string): void {
+    this.promptRegex = promptRegex;
+    const state = this.status();
+    this.emitEvent({ kind: 'state', status: state.status, reason: state.reason });
   }
 
   private writeAndWait(data: string, timeoutMs: number, quiescenceMs: number, logInput: boolean): Promise<WaitResult> {
