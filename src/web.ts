@@ -91,7 +91,7 @@ async function openSession(id) {
   renderTabs();
   const snap = await fetch('/api/sessions/' + encodeURIComponent(id) + '/screen').then((r) => r.json());
   lastSeq = snap.lastSeq || 0;
-  if (snap.screen) term.write(snap.screen.replace(/\n/g, '\r\n'));
+  if (snap.screen) term.write(snap.screen.replace(/\\n/g, '\\r\\n'));
   status.textContent = snap.status ? id + ' ' + snap.status + ' seq=' + lastSeq : 'observing ' + id;
   connectEvents(id);
   setTimeout(() => fit.fit(), 0);

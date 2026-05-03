@@ -14,9 +14,9 @@ import { TermSession } from './session.js';
 import { webAppJs, webHtml } from './web.js';
 
 const require = createRequire(import.meta.url);
-const xtermJsPath = require.resolve('@xterm/xterm');
+const xtermJsPath = require.resolve('@xterm/xterm/lib/xterm.mjs');
 const xtermCssPath = require.resolve('@xterm/xterm/css/xterm.css');
-const xtermFitPath = require.resolve('@xterm/addon-fit');
+const xtermFitPath = require.resolve('@xterm/addon-fit/lib/addon-fit.mjs');
 
 type Subscriber = { socket: Socket; session: string };
 
