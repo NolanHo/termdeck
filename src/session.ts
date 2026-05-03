@@ -1,4 +1,4 @@
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { appendFileSync, createWriteStream, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import * as pty from 'node-pty';
@@ -50,6 +50,8 @@ export class TermSession extends EventEmitter {
   private readonly term: InstanceType<typeof Terminal>;
   private readonly ring = new TextRing();
   private readonly transcript;
+  private readonly eventsPath: string;
+  private readonly events: Event[] = [];
   private seq = 0;
   private lastOutputAt = Date.now();
   private exited = false;
@@ -66,6 +68,8 @@ export class TermSession extends EventEmitter {
     const dir = sessionDir(this.id);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.transcript = createWriteStream(join(dir, 'transcript.log'), { flags: 'a', mode: 0o600 });
+    this.eventsPath = join(dir, 'events.jsonl');
+    this.loadEvents();
     this.term = new Terminal({ rows: this.rows, cols: this.cols, allowProposedApi: true });
 
     const shell = opts.shell || 'bash';
@@ -134,6 +138,10 @@ export class TermSession extends EventEmitter {
     this.ptyProcess.kill();
   }
 
+  eventsAfter(seq: number): Event[] {
+    return this.events.filter((e) => e.seq > seq);
+  }
+
   private writeAndWait(data: string, timeoutMs: number, quiescenceMs: number, logInput: boolean): Promise<WaitResult> {
     const mark = this.ring.mark();
     if (logInput) this.emitEvent({ kind: 'input', data });
@@ -184,7 +192,17 @@ export class TermSession extends EventEmitter {
   private emitEvent(event: EventInput): void {
     this.seq += 1;
     const full = { ...event, seq: this.seq, tsMs: Date.now(), session: this.id } as Event;
+    this.events.push(full);
+    appendFileSync(this.eventsPath, `${JSON.stringify(full)}\n`, { mode: 0o600 });
     this.emit('event', full);
+  }
+
+  private loadEvents(): void {
+    try {
+      const rows = readFileSync(this.eventsPath, 'utf8').split('\n').filter(Boolean);
+      for (const row of rows) this.events.push(JSON.parse(row) as Event);
+      this.seq = this.events.at(-1)?.seq ?? 0;
+    } catch {}
   }
 }
 

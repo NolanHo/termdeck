@@ -18,6 +18,7 @@ import {
   ScrollbackSchema,
   SendSchema,
   SessionInfoSchema,
+  SubscribeSchema,
   StateSchema,
   type Envelope,
   type Event as PbEvent,
@@ -36,7 +37,8 @@ export type Request =
   | { id: number; op: 'screen'; session: string }
   | { id: number; op: 'scrollback'; session: string; lines?: number }
   | { id: number; op: 'list' }
-  | { id: number; op: 'kill'; session: string };
+  | { id: number; op: 'kill'; session: string }
+  | { id: number; op: 'subscribe'; session: string; afterSeq?: number };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -144,6 +146,8 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { op: { case: 'listSessions', value: create(ListSessionsSchema) } });
     case 'kill':
       return create(RequestSchema, { session, op: { case: 'kill', value: create(KillSchema) } });
+    case 'subscribe':
+      return create(RequestSchema, { session, op: { case: 'subscribe', value: create(SubscribeSchema, { afterSeq: BigInt(req.afterSeq ?? 0) }) } });
   }
 }
 
@@ -168,6 +172,8 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return { id, op: 'list' };
     case 'kill':
       return { id, op: 'kill', session };
+    case 'subscribe':
+      return { id, op: 'subscribe', session, afterSeq: Number(req.op.value.afterSeq) };
     default:
       throw new Error('empty request op');
   }
