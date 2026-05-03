@@ -1,9 +1,18 @@
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { createServer as createHttpServer, type IncomingMessage } from 'node:http';
+import type { Duplex } from 'node:stream';
+import { createHash } from 'node:crypto';
 import { createServer, type Socket } from 'node:net';
 import { dirname, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
 import { rootDir, socketPath } from './paths.js';
 import { TermSession } from './session.js';
+import { webAppJs, webHtml } from './web.js';
+
+const require = createRequire(import.meta.url);
+const xtermJsPath = require.resolve('@xterm/xterm');
+const xtermCssPath = require.resolve('@xterm/xterm/css/xterm.css');
 
 class SessionManager {
   private readonly sessions = new Map<string, TermSession>();
@@ -32,6 +41,10 @@ class SessionManager {
 
   list(): Response['sessions'] {
     return [...this.sessions.values()].map((s) => s.info());
+  }
+
+  listSessions(): TermSession[] {
+    return [...this.sessions.values()];
   }
 
   kill(id: string): void {
@@ -128,6 +141,8 @@ export function main(): void {
     rmSync(socketPath);
   } catch {}
 
+  startWebServer();
+
   const server = createServer((socket: Socket) => {
     const reader = new FrameReader(socket);
     reader.on('frame', async (frame) => {
@@ -143,6 +158,68 @@ export function main(): void {
 
   process.on('SIGINT', () => process.exit(0));
   process.on('SIGTERM', () => process.exit(0));
+}
+
+function startWebServer(): void {
+  const port = Number(process.env.TERMDECK_WEB_PORT ?? 8765);
+  const server = createHttpServer((req, res) => {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+    if (url.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', webHtml);
+    if (url.pathname === '/app.js') return send(res, 200, 'text/javascript; charset=utf-8', webAppJs);
+    if (url.pathname === '/xterm.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermJsPath));
+    if (url.pathname === '/xterm.css') return send(res, 200, 'text/css; charset=utf-8', readFileSync(xtermCssPath));
+    if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
+    const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
+    if (screenMatch) {
+      const s = manager.get(decodeURIComponent(screenMatch[1]));
+      return send(res, 200, 'application/json', JSON.stringify({ screen: s.screen(), status: s.status().status, lastSeq: s.info().lastSeq }));
+    }
+    send(res, 404, 'text/plain; charset=utf-8', 'not found');
+  });
+
+  server.on('upgrade', (req, socket) => handleWebSocketUpgrade(req, socket));
+  server.listen(port, '127.0.0.1', () => console.log(`termdeck web listening on http://127.0.0.1:${port}`));
+}
+
+function send(res: { writeHead(code: number, headers: Record<string, string>): void; end(body: string | Buffer): void }, code: number, contentType: string, body: string | Buffer): void {
+  res.writeHead(code, { 'content-type': contentType });
+  res.end(body);
+}
+
+function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+  if (url.pathname !== '/ws') {
+    socket.destroy();
+    return;
+  }
+  const key = req.headers['sec-websocket-key'];
+  if (typeof key !== 'string') {
+    socket.destroy();
+    return;
+  }
+  const session = url.searchParams.get('session');
+  if (!session) {
+    socket.destroy();
+    return;
+  }
+  const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+  socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${accept}`, '', ''].join('\r\n'));
+  const s = manager.get(session);
+  const onEvent = (event: Event) => {
+    if (event.session === session) socket.write(wsText(JSON.stringify(event)));
+  };
+  s.on('event', onEvent);
+  socket.on('close', () => s.off('event', onEvent));
+}
+
+function wsText(text: string): Buffer {
+  const payload = Buffer.from(text);
+  if (payload.length < 126) return Buffer.concat([Buffer.from([0x81, payload.length]), payload]);
+  const header = Buffer.allocUnsafe(4);
+  header[0] = 0x81;
+  header[1] = 126;
+  header.writeUInt16BE(payload.length, 2);
+  return Buffer.concat([header, payload]);
 }
 
 main();

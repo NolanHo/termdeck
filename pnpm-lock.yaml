@@ -14,6 +14,9 @@ importers:
       '@xterm/headless':
         specifier: ^5.5.0
         version: 5.5.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
       commander:
         specifier: ^14.0.2
         version: 14.0.3
@@ -275,6 +278,9 @@ packages:
 
   '@xterm/headless@5.5.0':
     resolution: {integrity: sha512-5xXB7kdQlFBP82ViMJTwwEc3gKCLGKR/eoxQm4zge7GPBl86tCdI0IdPJjoKd8mUSFXz5V7i/25sfsEkP4j46g==}
+
+  '@xterm/xterm@6.0.0':
+    resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
 
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
@@ -560,6 +566,8 @@ snapshots:
       - supports-color
 
   '@xterm/headless@5.5.0': {}
+
+  '@xterm/xterm@6.0.0': {}
 
   abbrev@4.0.0: {}
 
