@@ -320,7 +320,7 @@ function startWebServer(): HttpServer {
       const snapshotMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/snapshot$/);
       if (snapshotMatch) {
         const s = manager.get(decodeURIComponent(snapshotMatch[1]));
-        return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols }));
+        return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols, snapshot: s.snapshot() }));
       }
       send(res, 404, 'text/plain; charset=utf-8', 'not found');
     } catch (err) {

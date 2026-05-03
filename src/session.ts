@@ -4,6 +4,7 @@ import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import * as pty from 'node-pty';
 import xtermHeadless from '@xterm/headless';
+import serializeAddon from '@xterm/addon-serialize';
 import { signalProcessGroup } from './platform.js';
 import { TextRing } from './ring.js';
 import { detectState, type StateResult } from './state.js';
@@ -11,6 +12,7 @@ import type { Event, Status } from './protocol.js';
 import { sessionDir } from './paths.js';
 
 const { Terminal } = xtermHeadless;
+const { SerializeAddon } = serializeAddon;
 
 export type SessionOptions = {
   id: string;
@@ -59,6 +61,7 @@ export class TermSession extends EventEmitter {
   private readonly ptyProcess: pty.IPty;
   private term: InstanceType<typeof Terminal>;
   private readonly ring = new TextRing();
+  private readonly serializer: InstanceType<typeof SerializeAddon>;
   private readonly transcript;
   private readonly transcriptPath: string;
   private readonly eventsPath: string;
@@ -96,6 +99,8 @@ export class TermSession extends EventEmitter {
     this.transcript = createWriteStream(this.transcriptPath, { flags: 'a', mode: 0o600 });
     this.loadEvents();
     this.term = new Terminal({ rows: this.rows, cols: this.cols, allowProposedApi: true });
+    this.serializer = new SerializeAddon();
+    this.term.loadAddon(this.serializer);
 
     this.shell = opts.shell || userInfo().shell || process.env.SHELL || 'bash';
     this.shellArgs = [];
@@ -233,6 +238,10 @@ ${shell} /tmp/${delimiter}.sh; rc=$?; rm -f /tmp/${delimiter}.sh; printf '\n__TE
     const start = Math.max(0, buffer.length - lines);
     for (let i = start; i < buffer.length; i++) out.push(buffer.getLine(i)?.translateToString(true) ?? '');
     return out.join('\n').replace(/\n+$/, '');
+  }
+
+  snapshot(scrollback = 1_000): string {
+    return this.serializer.serialize({ scrollback });
   }
 
   kill(): void {

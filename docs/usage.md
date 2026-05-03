@@ -294,10 +294,10 @@ TERMDECK_WEB_PORT=8787 termdeckd
 
 The browser uses:
 
-- JSON REST for low-frequency session and screen snapshots
-- binary protobuf WebSocket events for terminal output replay and live output
+- JSON REST for low-frequency session metadata and serialized xterm snapshots
+- binary protobuf WebSocket events for live output after the snapshot sequence
 
-The browser reconnects with `afterSeq` so it can replay events missed during a disconnect while the daemon retains them.
+The browser loads a serialized xterm snapshot first, then subscribes with `afterSeq=lastSeq`. Reconnects use `afterSeq` to replay events missed during a disconnect while the daemon retains them.
 
 ## Automation pattern
 

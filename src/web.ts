@@ -90,9 +90,10 @@ async function openSession(id) {
   term.reset();
   renderTabs();
   const snap = await fetch('/api/sessions/' + encodeURIComponent(id) + '/snapshot').then((r) => r.json());
-  lastSeq = 0;
-  status.textContent = snap.status ? id + ' ' + snap.status + ' replaying' : 'observing ' + id;
-  connectEvents(id, snap.lastSeq || 0);
+  lastSeq = snap.lastSeq || 0;
+  if (snap.snapshot) term.write(snap.snapshot);
+  status.textContent = snap.status ? id + ' ' + snap.status + ' seq=' + lastSeq : 'observing ' + id;
+  connectEvents(id);
   setTimeout(() => fit.fit(), 0);
 }
 
