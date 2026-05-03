@@ -38,6 +38,7 @@ function printResponse(res: Response): void {
   if (res.output) process.stdout.write(res.output);
   else if (res.screen) process.stdout.write(`${res.screen}\n`);
   else if (res.transcript) process.stdout.write(`${res.transcript}\n`);
+  else if (res.metadata) process.stdout.write(`${JSON.stringify(res.metadata, null, 2)}\n`);
   else if (res.matched !== undefined) console.log(res.matched ? 'matched' : 'not matched');
   else if (res.sessions) {
     for (const s of res.sessions) console.log(`${s.id}\t${s.status}\t${s.cwd}`);
@@ -165,6 +166,26 @@ program.command('resize')
   .requiredOption('--rows <rows>', 'rows', (v) => Number(v))
   .requiredOption('--cols <cols>', 'cols', (v) => Number(v))
   .action(async (session, opts) => printResponse(await request({ op: 'resize', session, rows: opts.rows, cols: opts.cols })));
+
+program.command('metadata')
+  .argument('<session>')
+  .action(async (session) => printResponse(await request({ op: 'metadata', session })));
+
+program.command('clear-scrollback')
+  .argument('<session>')
+  .action(async (session) => printResponse(await request({ op: 'clearScrollback', session })));
+
+program.command('expect-prompt')
+  .argument('<session>')
+  .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
+  .action(async (session, opts) => printResponse(await request({ op: 'expectPrompt', session, timeoutMs: opts.timeoutMs })));
+
+program.command('signal')
+  .argument('<session>')
+  .argument('<signal>')
+  .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .action(async (session, signal, opts) => printResponse(await request({ op: 'signal', session, signal, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs })));
 
 program.command('kill')
   .argument('<session>')

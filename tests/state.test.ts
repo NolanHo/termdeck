@@ -14,6 +14,23 @@ test('detects ready prompt using custom regex', () => {
   assert.deepEqual(detectState('repo main >', '.*>\\s*$'), {
     status: 'ready',
     reason: 'custom prompt regex',
+    prompt: 'shell',
+  });
+});
+
+test('detects python prompt as repl', () => {
+  assert.deepEqual(detectState('>>> '), {
+    status: 'repl',
+    reason: 'python prompt',
+    prompt: 'python',
+  });
+});
+
+test('detects pdb prompt as repl', () => {
+  assert.deepEqual(detectState('(Pdb) '), {
+    status: 'repl',
+    reason: 'pdb prompt',
+    prompt: 'pdb',
   });
 });
 

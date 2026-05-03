@@ -32,6 +32,10 @@ message Request {
     Password password = 22;
     Transcript transcript = 23;
     Resize resize = 24;
+    Metadata metadata = 25;
+    ClearScrollback clear_scrollback = 26;
+    ExpectPrompt expect_prompt = 27;
+    Signal signal = 28;
   }
 }
 
@@ -46,6 +50,10 @@ message Response {
   uint64 last_seq = 8;
   bool matched = 9;
   string transcript = 10;
+  string prompt = 11;
+  bool output_truncated = 12;
+  uint64 dropped_chars = 13;
+  string metadata_json = 14;
 }
 
 message Event {
@@ -123,6 +131,20 @@ message Password {
 }
 
 message Transcript {}
+
+message Metadata {}
+
+message ClearScrollback {}
+
+message ExpectPrompt {
+  uint32 timeout_ms = 1;
+}
+
+message Signal {
+  string signal = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+}
 
 message Resize {
   uint32 rows = 1;

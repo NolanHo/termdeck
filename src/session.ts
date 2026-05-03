@@ -1,13 +1,14 @@
-import { appendFileSync, createWriteStream, mkdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 import * as pty from 'node-pty';
 import xtermHeadless from '@xterm/headless';
-const { Terminal } = xtermHeadless;
 import { TextRing } from './ring.js';
-import { detectState } from './state.js';
+import { detectState, type StateResult } from './state.js';
 import type { Event, Status } from './protocol.js';
 import { sessionDir } from './paths.js';
+
+const { Terminal } = xtermHeadless;
 
 export type SessionOptions = {
   id: string;
@@ -16,9 +17,10 @@ export type SessionOptions = {
   rows?: number;
   cols?: number;
   promptRegex?: string;
+  description?: string;
 };
 
-export type WaitResult = { output: string; status: Status; timedOut: boolean };
+export type WaitResult = { output: string; status: Status; timedOut: boolean; outputTruncated: boolean; droppedChars: number };
 
 function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const next = { ...env };
@@ -43,20 +45,29 @@ function controlChar(key: string): string {
 export class TermSession extends EventEmitter {
   readonly id: string;
   readonly cwd: string;
-  readonly rows: number;
-  readonly cols: number;
+  rows: number;
+  cols: number;
   promptRegex?: string;
+  description?: string;
   private readonly ptyProcess: pty.IPty;
-  private readonly term: InstanceType<typeof Terminal>;
+  private term: InstanceType<typeof Terminal>;
   private readonly ring = new TextRing();
   private readonly transcript;
   private readonly transcriptPath: string;
   private readonly eventsPath: string;
+  private readonly commandsPath: string;
+  private readonly interactionPath: string;
+  private readonly sessionPath: string;
+  private readonly statePath: string;
   private readonly events: Event[] = [];
   private seq = 0;
+  private readonly startedAt = new Date().toISOString();
+  private lastActivityAt = this.startedAt;
   private lastOutputAt = Date.now();
   private exited = false;
   private lastStatus: Status = 'unknown';
+  private readonly shell: string;
+  private readonly shellArgs: string[];
 
   constructor(opts: SessionOptions) {
     super();
@@ -65,18 +76,23 @@ export class TermSession extends EventEmitter {
     this.rows = opts.rows ?? 30;
     this.cols = opts.cols ?? 120;
     this.promptRegex = opts.promptRegex;
+    this.description = opts.description;
 
     const dir = sessionDir(this.id);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.transcriptPath = join(dir, 'transcript.log');
-    this.transcript = createWriteStream(this.transcriptPath, { flags: 'a', mode: 0o600 });
     this.eventsPath = join(dir, 'events.jsonl');
+    this.commandsPath = join(dir, 'commands.log');
+    this.interactionPath = join(dir, 'interaction.log');
+    this.sessionPath = join(dir, 'session.json');
+    this.statePath = join(dir, 'state.json');
+    this.transcript = createWriteStream(this.transcriptPath, { flags: 'a', mode: 0o600 });
     this.loadEvents();
     this.term = new Terminal({ rows: this.rows, cols: this.cols, allowProposedApi: true });
 
-    const shell = opts.shell || 'bash';
-    const shellArgs = opts.shell ? [] : ['--noprofile', '--norc'];
-    this.ptyProcess = pty.spawn(shell, shellArgs, {
+    this.shell = opts.shell || 'bash';
+    this.shellArgs = opts.shell ? [] : ['--noprofile', '--norc'];
+    this.ptyProcess = pty.spawn(this.shell, this.shellArgs, {
       name: 'xterm-256color',
       cols: this.cols,
       rows: this.rows,
@@ -88,15 +104,41 @@ export class TermSession extends EventEmitter {
     this.ptyProcess.onExit(({ exitCode, signal }) => {
       this.exited = true;
       this.emitEvent({ kind: 'exit', code: exitCode, signal: signal === undefined ? undefined : String(signal) });
+      this.writeSessionMeta(new Date().toISOString());
       this.transcript.end();
     });
+    this.writeSessionMeta();
+    this.writeState();
   }
 
   info(): { id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number; promptRegex?: string } {
     return { id: this.id, cwd: this.cwd, rows: this.rows, cols: this.cols, status: this.status().status, lastSeq: this.seq, promptRegex: this.promptRegex };
   }
 
-  status(): { status: Status; reason: string } {
+  metadata(): Record<string, unknown> {
+    return {
+      id: this.id,
+      cwd: this.cwd,
+      pid: this.ptyProcess.pid,
+      rows: this.rows,
+      cols: this.cols,
+      shell: this.shell,
+      shellArgs: this.shellArgs,
+      promptRegex: this.promptRegex,
+      description: this.description,
+      startedAt: this.startedAt,
+      lastActivityAt: this.lastActivityAt,
+      transcript: this.transcriptPath,
+      events: this.eventsPath,
+      commands: this.commandsPath,
+      interaction: this.interactionPath,
+      state: this.statePath,
+      session: this.sessionPath,
+      ring: this.ring.stats(),
+    };
+  }
+
+  status(): StateResult {
     return detectState(this.screen(), this.promptRegex, this.exited);
   }
 
@@ -112,6 +154,13 @@ export class TermSession extends EventEmitter {
     return this.writeAndWait(controlChar(key), timeoutMs, quiescenceMs, true);
   }
 
+  signal(signal: string, timeoutMs = 5_000, quiescenceMs = 1_000): Promise<WaitResult> {
+    const mark = this.ring.mark();
+    this.ptyProcess.kill(signal);
+    this.lastActivityAt = new Date().toISOString();
+    return this.waitForOutput(mark, timeoutMs, quiescenceMs, false);
+  }
+
   poll(timeoutMs = 100, quiescenceMs = 1_000): Promise<WaitResult> {
     return this.waitForOutput(this.ring.mark(), timeoutMs, quiescenceMs, true);
   }
@@ -121,26 +170,11 @@ export class TermSession extends EventEmitter {
   }
 
   async expect(pattern: string, timeoutMs = 30_000): Promise<WaitResult & { matched: boolean }> {
-    const rx = new RegExp(pattern);
-    const mark = this.ring.mark();
-    if (rx.test(this.ring.all())) return { output: '', status: this.status().status, timedOut: false, matched: true };
-    const deadline = Date.now() + timeoutMs;
-    return new Promise((resolve) => {
-      const done = (matched: boolean, timedOut: boolean) => {
-        clearInterval(timer);
-        this.off('output', onOutput);
-        const state = this.status();
-        resolve({ output: this.ring.since(mark), status: state.status, timedOut, matched });
-      };
-      const onOutput = () => {
-        if (rx.test(this.ring.since(mark))) done(true, false);
-      };
-      const timer = setInterval(() => {
-        if (rx.test(this.ring.since(mark))) return done(true, false);
-        if (Date.now() >= deadline) return done(false, true);
-      }, 25);
-      this.on('output', onOutput);
-    });
+    return this.expectPredicate((text) => new RegExp(pattern).test(text), timeoutMs);
+  }
+
+  async expectPrompt(timeoutMs = 30_000): Promise<WaitResult & { matched: boolean }> {
+    return this.expectPredicate(() => this.status().status === 'ready', timeoutMs);
   }
 
   transcriptFile(): string {
@@ -148,17 +182,24 @@ export class TermSession extends EventEmitter {
   }
 
   resize(rows: number, cols: number): void {
+    this.rows = rows;
+    this.cols = cols;
     this.ptyProcess.resize(cols, rows);
     this.term.resize(cols, rows);
+    this.lastActivityAt = new Date().toISOString();
     this.emitEvent({ kind: 'state', status: this.status().status, reason: 'resized' });
+    this.writeSessionMeta();
+  }
+
+  clearScrollback(): void {
+    this.term.clear();
+    this.emitEvent({ kind: 'state', status: this.status().status, reason: 'scrollback cleared' });
   }
 
   screen(): string {
     const lines: string[] = [];
     const buffer = this.term.buffer.active;
-    for (let i = 0; i < this.term.rows; i++) {
-      lines.push(buffer.getLine(i)?.translateToString(true) ?? '');
-    }
+    for (let i = 0; i < this.term.rows; i++) lines.push(buffer.getLine(i)?.translateToString(true) ?? '');
     while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
     return lines.join('\n');
   }
@@ -167,9 +208,7 @@ export class TermSession extends EventEmitter {
     const out: string[] = [];
     const buffer = this.term.buffer.active;
     const start = Math.max(0, buffer.length - lines);
-    for (let i = start; i < buffer.length; i++) {
-      out.push(buffer.getLine(i)?.translateToString(true) ?? '');
-    }
+    for (let i = start; i < buffer.length; i++) out.push(buffer.getLine(i)?.translateToString(true) ?? '');
     return out.join('\n').replace(/\n+$/, '');
   }
 
@@ -185,26 +224,52 @@ export class TermSession extends EventEmitter {
     this.promptRegex = promptRegex;
     const state = this.status();
     this.emitEvent({ kind: 'state', status: state.status, reason: state.reason });
+    this.writeSessionMeta();
   }
 
   private writeAndWait(data: string, timeoutMs: number, quiescenceMs: number, logInput: boolean): Promise<WaitResult> {
     const mark = this.ring.mark();
-    if (logInput) this.emitEvent({ kind: 'input', data });
+    if (logInput) {
+      this.emitEvent({ kind: 'input', data });
+      appendFileSync(this.commandsPath, `${JSON.stringify({ tsMs: Date.now(), data })}\n`, { mode: 0o600 });
+    }
     this.ptyProcess.write(data);
+    this.lastActivityAt = new Date().toISOString();
     return this.waitForOutput(mark, timeoutMs, quiescenceMs, false);
+  }
+
+  private expectPredicate(match: (text: string) => boolean, timeoutMs: number): Promise<WaitResult & { matched: boolean }> {
+    const mark = this.ring.mark();
+    if (match(this.ring.all())) return Promise.resolve({ ...this.resultSince(mark, false), matched: true });
+    const deadline = Date.now() + timeoutMs;
+    return new Promise((resolve) => {
+      const done = (matched: boolean, timedOut: boolean) => {
+        clearInterval(timer);
+        this.off('output', onOutput);
+        resolve({ ...this.resultSince(mark, timedOut), matched });
+      };
+      const onOutput = () => {
+        if (match(this.ring.since(mark))) done(true, false);
+      };
+      const timer = setInterval(() => {
+        if (match(this.ring.since(mark))) return done(true, false);
+        if (Date.now() >= deadline) return done(false, true);
+      }, 25);
+      this.on('output', onOutput);
+    });
   }
 
   private waitForOutput(mark: number, timeoutMs: number, quiescenceMs: number, requireNewOutput: boolean): Promise<WaitResult> {
     const deadline = Date.now() + timeoutMs;
     let sawOutput = this.ring.mark() > mark;
-
     return new Promise((resolve) => {
       const done = (timedOut: boolean) => {
         clearInterval(timer);
         this.off('output', onOutput);
-        const state = this.status();
-        this.maybeEmitState(state.status, state.reason);
-        resolve({ output: this.ring.since(mark), status: state.status, timedOut });
+        const result = this.resultSince(mark, timedOut);
+        this.maybeEmitState(result.status, this.status().reason);
+        appendFileSync(this.interactionPath, `${JSON.stringify({ tsMs: Date.now(), result })}\n`, { mode: 0o600 });
+        resolve(result);
       };
       const onOutput = () => {
         sawOutput = true;
@@ -219,8 +284,15 @@ export class TermSession extends EventEmitter {
     });
   }
 
+  private resultSince(mark: number, timedOut: boolean): WaitResult {
+    const state = this.status();
+    const output = this.ring.sinceWithStats(mark);
+    return { output: output.text, status: state.status, timedOut, outputTruncated: output.truncated, droppedChars: output.droppedChars };
+  }
+
   private onOutput(data: string): void {
     this.lastOutputAt = Date.now();
+    this.lastActivityAt = new Date().toISOString();
     this.transcript.write(data);
     this.ring.push(data);
     this.term.write(data);
@@ -240,6 +312,7 @@ export class TermSession extends EventEmitter {
     this.events.push(full);
     appendFileSync(this.eventsPath, `${JSON.stringify(full)}\n`, { mode: 0o600 });
     this.emit('event', full);
+    this.writeState();
   }
 
   private loadEvents(): void {
@@ -248,6 +321,15 @@ export class TermSession extends EventEmitter {
       for (const row of rows) this.events.push(JSON.parse(row) as Event);
       this.seq = this.events.at(-1)?.seq ?? 0;
     } catch {}
+  }
+
+  private writeSessionMeta(endTime?: string): void {
+    writeFileSync(this.sessionPath, `${JSON.stringify({ ...this.metadata(), endTime }, null, 2)}\n`, { mode: 0o600 });
+  }
+
+  private writeState(): void {
+    const state = this.status();
+    writeFileSync(this.statePath, `${JSON.stringify({ ...state, lastSeq: this.seq, lastActivityAt: this.lastActivityAt }, null, 2)}\n`, { mode: 0o600 });
   }
 }
 

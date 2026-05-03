@@ -3,14 +3,17 @@ import { EventEmitter } from 'node:events';
 import type { Socket } from 'node:net';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import {
+  ClearScrollbackSchema,
   ConfigureSchema,
   ControlSchema,
+  ExpectPromptSchema,
   ExpectSchema,
   EnvelopeSchema,
   EventSchema,
   ExitSchema,
   KillSchema,
   ListSessionsSchema,
+  MetadataSchema,
   NewSessionSchema,
   PasswordSchema,
   PollSchema,
@@ -22,6 +25,7 @@ import {
   ScrollbackSchema,
   SendSchema,
   SessionInfoSchema,
+  SignalSchema,
   SubscribeSchema,
   StateSchema,
   TranscriptSchema,
@@ -31,7 +35,8 @@ import {
   type Response as PbResponse,
 } from './gen/termdeck/v1/termdeck_pb.js';
 
-export type Status = 'running' | 'ready' | 'password' | 'confirm' | 'eof' | 'unknown';
+export type Status = 'running' | 'ready' | 'repl' | 'password' | 'confirm' | 'editor' | 'pager' | 'eof' | 'unknown';
+export type PromptKind = 'shell' | 'python' | 'pdb' | 'none' | 'unknown';
 
 export type Request =
   | { id: number; op: 'new'; session: string; cwd: string; shell?: string; rows?: number; cols?: number; promptRegex?: string }
@@ -48,7 +53,11 @@ export type Request =
   | { id: number; op: 'expect'; session: string; pattern: string; timeoutMs?: number }
   | { id: number; op: 'password'; session: string; secret: string; timeoutMs?: number; quiescenceMs?: number }
   | { id: number; op: 'transcript'; session: string }
-  | { id: number; op: 'resize'; session: string; rows: number; cols: number };
+  | { id: number; op: 'resize'; session: string; rows: number; cols: number }
+  | { id: number; op: 'metadata'; session: string }
+  | { id: number; op: 'clearScrollback'; session: string }
+  | { id: number; op: 'expectPrompt'; session: string; timeoutMs?: number }
+  | { id: number; op: 'signal'; session: string; signal: string; timeoutMs?: number; quiescenceMs?: number };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -64,6 +73,10 @@ export type Response = {
   lastSeq?: number;
   matched?: boolean;
   transcript?: string;
+  prompt?: PromptKind;
+  outputTruncated?: boolean;
+  droppedChars?: number;
+  metadata?: Record<string, unknown>;
 };
 
 export type Event =
@@ -170,6 +183,14 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { session, op: { case: 'transcript', value: create(TranscriptSchema) } });
     case 'resize':
       return create(RequestSchema, { session, op: { case: 'resize', value: create(ResizeSchema, { rows: req.rows, cols: req.cols }) } });
+    case 'metadata':
+      return create(RequestSchema, { session, op: { case: 'metadata', value: create(MetadataSchema) } });
+    case 'clearScrollback':
+      return create(RequestSchema, { session, op: { case: 'clearScrollback', value: create(ClearScrollbackSchema) } });
+    case 'expectPrompt':
+      return create(RequestSchema, { session, op: { case: 'expectPrompt', value: create(ExpectPromptSchema, { timeoutMs: req.timeoutMs ?? 0 }) } });
+    case 'signal':
+      return create(RequestSchema, { session, op: { case: 'signal', value: create(SignalSchema, { signal: req.signal, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
   }
 }
 
@@ -206,6 +227,14 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return { id, op: 'transcript', session };
     case 'resize':
       return { id, op: 'resize', session, rows: req.op.value.rows, cols: req.op.value.cols };
+    case 'metadata':
+      return { id, op: 'metadata', session };
+    case 'clearScrollback':
+      return { id, op: 'clearScrollback', session };
+    case 'expectPrompt':
+      return withDefined({ id, op: 'expectPrompt', session, timeoutMs: req.op.value.timeoutMs || undefined }) as Request;
+    case 'signal':
+      return withDefined({ id, op: 'signal', session, signal: req.op.value.signal, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
     default:
       throw new Error('empty request op');
   }
@@ -226,6 +255,10 @@ function toPbResponse(res: Response): PbResponse {
     lastSeq: BigInt(res.lastSeq ?? 0),
     matched: res.matched ?? false,
     transcript: res.transcript ?? '',
+    prompt: res.prompt ?? '',
+    outputTruncated: res.outputTruncated ?? false,
+    droppedChars: BigInt(res.droppedChars ?? 0),
+    metadataJson: res.metadata ? JSON.stringify(res.metadata) : '',
     sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
@@ -238,6 +271,10 @@ function fromPbResponse(id: number, res: PbResponse): Response {
   if (res.screen) out.screen = res.screen;
   if (res.matched) out.matched = res.matched;
   if (res.transcript) out.transcript = res.transcript;
+  if (res.prompt) out.prompt = res.prompt as PromptKind;
+  if (res.outputTruncated) out.outputTruncated = res.outputTruncated;
+  if (res.droppedChars) out.droppedChars = Number(res.droppedChars);
+  if (res.metadataJson) out.metadata = JSON.parse(res.metadataJson) as Record<string, unknown>;
   return out;
 }
 

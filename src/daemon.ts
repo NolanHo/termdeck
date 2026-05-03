@@ -89,37 +89,41 @@ function assertNever(x: never): never {
   throw new Error(`unknown request: ${JSON.stringify(x)}`);
 }
 
+function result(id: number, r: { status: import('./protocol.js').Status; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number }): Response {
+  return { id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars };
+}
+
 async function handle(req: Request, socket?: Socket): Promise<Response> {
   try {
     switch (req.op) {
       case 'new': {
         const s = manager.create(req);
         const state = s.status();
-        return { id: req.id, ok: true, status: state.status, screen: s.screen(), lastSeq: s.info().lastSeq };
+        return { id: req.id, ok: true, status: state.status, prompt: state.prompt, screen: s.screen(), lastSeq: s.info().lastSeq };
       }
       case 'run': {
         const r = await manager.get(req.session).run(req.command, req.timeoutMs, req.quiescenceMs);
-        return { id: req.id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut };
+        return result(req.id, r);
       }
       case 'send': {
         const r = await manager.get(req.session).send(req.data, req.timeoutMs, req.quiescenceMs);
-        return { id: req.id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut };
+        return result(req.id, r);
       }
       case 'ctrl': {
         const r = await manager.get(req.session).ctrl(req.key, req.timeoutMs, req.quiescenceMs);
-        return { id: req.id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut };
+        return result(req.id, r);
       }
       case 'poll': {
         const r = await manager.get(req.session).poll(req.timeoutMs, req.quiescenceMs);
-        return { id: req.id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut };
+        return result(req.id, r);
       }
       case 'screen': {
         const s = manager.get(req.session);
-        return { id: req.id, ok: true, status: s.status().status, screen: s.screen() };
+        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt, screen: s.screen() };
       }
       case 'scrollback': {
         const s = manager.get(req.session);
-        return { id: req.id, ok: true, status: s.status().status, screen: s.scrollback(req.lines) };
+        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt, screen: s.scrollback(req.lines) };
       }
       case 'list':
         return { id: req.id, ok: true, sessions: manager.list() };
@@ -133,11 +137,11 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'expect': {
         const r = await manager.get(req.session).expect(req.pattern, req.timeoutMs);
-        return { id: req.id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut, matched: r.matched };
+        return { ...result(req.id, r), matched: r.matched };
       }
       case 'password': {
         const r = await manager.get(req.session).password(req.secret, req.timeoutMs, req.quiescenceMs);
-        return { id: req.id, ok: true, status: r.status, output: '[password sent]', timedOut: r.timedOut };
+        return { ...result(req.id, r), output: '[password sent]' };
       }
       case 'transcript': {
         const s = manager.get(req.session);
@@ -147,6 +151,23 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         const s = manager.get(req.session);
         s.resize(req.rows, req.cols);
         return { id: req.id, ok: true, status: s.status().status };
+      }
+      case 'metadata': {
+        const s = manager.get(req.session);
+        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt, metadata: s.metadata() };
+      }
+      case 'clearScrollback': {
+        const s = manager.get(req.session);
+        s.clearScrollback();
+        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt };
+      }
+      case 'expectPrompt': {
+        const r = await manager.get(req.session).expectPrompt(req.timeoutMs);
+        return { ...result(req.id, r), matched: r.matched };
+      }
+      case 'signal': {
+        const r = await manager.get(req.session).signal(req.signal, req.timeoutMs, req.quiescenceMs);
+        return result(req.id, r);
       }
       case 'subscribe': {
         if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };

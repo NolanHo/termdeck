@@ -25,7 +25,16 @@ export class TextRing {
   }
 
   since(mark: number): string {
+    return this.sinceWithStats(mark).text;
+  }
+
+  sinceWithStats(mark: number): { text: string; truncated: boolean; droppedChars: number } {
+    const droppedChars = Math.max(0, this.start - mark);
     const i = Math.max(0, Math.min(this.text.length, mark - this.start));
-    return this.text.slice(i);
+    return { text: this.text.slice(i), truncated: droppedChars > 0, droppedChars };
+  }
+
+  stats(): { start: number; end: number; retainedChars: number; droppedChars: number } {
+    return { start: this.start, end: this.end, retainedChars: this.text.length, droppedChars: this.start };
   }
 }
