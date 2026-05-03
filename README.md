@@ -43,6 +43,11 @@ only-built-dependencies[]=node-pty
 
 The package postinstall check fails fast if the native binding is missing.
 
+## Documentation
+
+- [Usage Guide](docs/usage.md)
+- [Chinese README](README_zh.md)
+
 ## Quick start
 
 Start the daemon:

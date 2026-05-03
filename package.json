@@ -24,6 +24,7 @@
     "dist",
     "proto",
     "scripts",
+    "docs",
     "README.md",
     "README_zh.md",
     "LICENSE"

@@ -43,6 +43,11 @@ only-built-dependencies[]=node-pty
 
 如果 native binding 缺失，package 的 postinstall 检查会直接失败。
 
+## 文档
+
+- [使用文档](docs/usage.md)
+- [English README](README.md)
+
 ## 快速开始
 
 启动 daemon：
