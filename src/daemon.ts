@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import type { Duplex } from 'node:stream';
 import stripAnsi from 'strip-ansi';
 import { encodeEvent, FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
-import { socketAccessMode } from './platform.js';
+import { isWindows, socketAccessMode } from './platform.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { TermSession } from './session.js';
 import { webAppJs, webHtml } from './web.js';
@@ -232,14 +232,14 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
 
 export async function main(): Promise<void> {
   mkdirSync(rootDir, { recursive: true, mode: 0o700 });
-  mkdirSync(dirname(socketPath), { recursive: true, mode: 0o700 });
+  if (!isWindows) mkdirSync(dirname(socketPath), { recursive: true, mode: 0o700 });
   await removeStaleSocket();
 
   const webServer = startWebServer();
   const server = createDaemonServer();
 
   server.listen(socketPath, () => {
-    chmodSync(socketPath, socketAccessMode());
+    if (!isWindows) chmodSync(socketPath, socketAccessMode());
     console.log(`termdeckd listening on ${socketPath}`);
   });
 
@@ -247,9 +247,11 @@ export async function main(): Promise<void> {
     manager.terminateAll();
     server.close();
     webServer.close();
-    try {
-      rmSync(socketPath);
-    } catch {}
+    if (!isWindows) {
+      try {
+        rmSync(socketPath);
+      } catch {}
+    }
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
@@ -269,7 +271,7 @@ function createDaemonServer(): NetServer {
 }
 
 async function removeStaleSocket(): Promise<void> {
-  if (!existsSync(socketPath)) return;
+  if (isWindows || !existsSync(socketPath)) return;
   await new Promise<void>((resolve) => {
     const probe = new Socket();
     probe.once('connect', () => {
