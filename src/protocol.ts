@@ -21,6 +21,7 @@ import {
   NewSessionSchema,
   PasswordSchema,
   PollSchema,
+  ReplaySchema,
   RequestSchema,
   ResponseSchema,
   ResizeSchema,
@@ -65,7 +66,8 @@ export type Request =
   | { id: number; op: 'history' }
   | { id: number; op: 'inspect'; session: string }
   | { id: number; op: 'log'; session: string; lines?: number }
-  | { id: number; op: 'events'; session: string; afterSeq?: number; limit?: number };
+  | { id: number; op: 'events'; session: string; afterSeq?: number; limit?: number }
+  | { id: number; op: 'replay'; session: string; lines?: number };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -214,6 +216,8 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { session, op: { case: 'log', value: create(LogSchema, { lines: req.lines ?? 0 }) } });
     case 'events':
       return create(RequestSchema, { session, op: { case: 'events', value: create(EventsSchema, { afterSeq: BigInt(req.afterSeq ?? 0), limit: req.limit ?? 0 }) } });
+    case 'replay':
+      return create(RequestSchema, { session, op: { case: 'replay', value: create(ReplaySchema, { lines: req.lines ?? 0 }) } });
   }
 }
 
@@ -266,6 +270,8 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return withDefined({ id, op: 'log', session, lines: req.op.value.lines || undefined }) as Request;
     case 'events':
       return withDefined({ id, op: 'events', session, afterSeq: Number(req.op.value.afterSeq) || undefined, limit: req.op.value.limit || undefined }) as Request;
+    case 'replay':
+      return withDefined({ id, op: 'replay', session, lines: req.op.value.lines || undefined }) as Request;
     default:
       throw new Error('empty request op');
   }

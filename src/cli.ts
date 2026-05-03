@@ -197,6 +197,11 @@ program.command('events')
   .option('--limit <limit>', 'max events', (v) => Number(v))
   .action(async (session, opts) => printResponse(await request({ op: 'events', session, afterSeq: opts.afterSeq, limit: opts.limit })));
 
+program.command('replay')
+  .argument('<session>')
+  .option('--lines <lines>', 'scrollback lines', (v) => Number(v))
+  .action(async (session, opts) => printResponse(await request({ op: 'replay', session, lines: opts.lines })));
+
 program.command('clear-scrollback')
   .argument('<session>')
   .action(async (session) => printResponse(await request({ op: 'clearScrollback', session })));

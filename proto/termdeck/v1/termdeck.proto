@@ -40,6 +40,7 @@ message Request {
     Inspect inspect = 30;
     Log log = 31;
     Events events = 32;
+    Replay replay = 33;
   }
 }
 
@@ -157,6 +158,10 @@ message Log {
 message Events {
   uint64 after_seq = 1;
   uint32 limit = 2;
+}
+
+message Replay {
+  uint32 lines = 1;
 }
 
 message ClearScrollback {}

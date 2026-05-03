@@ -9,6 +9,7 @@ import stripAnsi from 'strip-ansi';
 import { encodeEvent, FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
 import { isWindows, socketAccessMode } from './platform.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
+import { replayTranscript } from './replay.js';
 import { TermSession } from './session.js';
 import { webAppJs, webHtml } from './web.js';
 
@@ -217,6 +218,11 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         return { id: req.id, ok: true, logText: tailFile(join(sessionDir(req.session), 'transcript.log'), req.lines ?? 200) };
       case 'events':
         return { id: req.id, ok: true, eventsText: eventLines(req.session, req.afterSeq ?? 0, req.limit ?? 200) };
+      case 'replay': {
+        const meta = manager.list()?.some((s) => s.id === req.session) ? manager.get(req.session).metadata() : inspectSession(req.session);
+        const replay = await replayTranscript(String(meta.transcript), Number(meta.rows ?? 30), Number(meta.cols ?? 120), req.lines ?? 500);
+        return { id: req.id, ok: true, screen: replay.scrollback || replay.screen, metadata: { rows: replay.rows, cols: replay.cols } };
+      }
       case 'subscribe': {
         if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };
         manager.subscribe(socket, req.session, req.afterSeq ?? 0);
