@@ -1,4 +1,5 @@
 import { appendFileSync, createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
 import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import * as pty from 'node-pty';
@@ -34,6 +35,21 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   delete next.npm_config_verify_deps_before_run;
   next.TERM = next.TERM || 'xterm-256color';
   return next;
+}
+
+
+function encodeScriptCommand(command: string): string {
+  if (!needsScriptWrapper(command)) return command;
+  const script = Buffer.from(command, 'utf8').toString('base64');
+  return `printf %s ${shellQuote(script)} | base64 -d | bash`;
+}
+
+function needsScriptWrapper(command: string): boolean {
+  return command.includes('\n') || command.length > 180 || /["'`]/.test(command);
+}
+
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\''`)}'`;
 }
 
 function controlChar(key: string): string {
@@ -144,7 +160,7 @@ export class TermSession extends EventEmitter {
   }
 
   run(command: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
-    return this.writeAndWait(`${command}\r`, timeoutMs, quiescenceMs, true);
+    return this.writeAndWait(`${encodeScriptCommand(command)}\r`, timeoutMs, quiescenceMs, true);
   }
 
   send(data: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
