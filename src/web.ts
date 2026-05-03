@@ -89,11 +89,10 @@ async function openSession(id) {
   title.textContent = id;
   term.reset();
   renderTabs();
-  const snap = await fetch('/api/sessions/' + encodeURIComponent(id) + '/screen').then((r) => r.json());
-  lastSeq = snap.lastSeq || 0;
-  if (snap.screen) term.write(snap.screen.replace(/\\n/g, '\\r\\n'));
-  status.textContent = snap.status ? id + ' ' + snap.status + ' seq=' + lastSeq : 'observing ' + id;
-  connectEvents(id);
+  const snap = await fetch('/api/sessions/' + encodeURIComponent(id) + '/snapshot').then((r) => r.json());
+  lastSeq = 0;
+  status.textContent = snap.status ? id + ' ' + snap.status + ' replaying' : 'observing ' + id;
+  connectEvents(id, snap.lastSeq || 0);
   setTimeout(() => fit.fit(), 0);
 }
 
@@ -106,7 +105,7 @@ function closeSession() {
   term.reset();
 }
 
-function connectEvents(id) {
+function connectEvents(id, replayTargetSeq = 0) {
   clearTimeout(reconnectTimer);
   ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq);
   ws.binaryType = 'arraybuffer';
@@ -117,6 +116,7 @@ function connectEvents(id) {
     if (event.kind === 'output') term.write(event.data);
     if (event.kind === 'state') status.textContent = id + ' ' + event.status + ' seq=' + lastSeq;
     if (event.kind === 'exit') status.textContent = id + ' exited seq=' + lastSeq;
+    if (replayTargetSeq && lastSeq >= replayTargetSeq) status.textContent = 'observing ' + id + ' seq=' + lastSeq;
   };
   ws.onclose = () => {
     if (currentSession !== id) return;

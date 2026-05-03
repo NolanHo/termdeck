@@ -316,6 +316,11 @@ function startWebServer(): HttpServer {
         const s = manager.get(decodeURIComponent(screenMatch[1]));
         return send(res, 200, 'application/json', JSON.stringify({ screen: s.screen(), status: s.status().status, lastSeq: s.info().lastSeq }));
       }
+      const snapshotMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/snapshot$/);
+      if (snapshotMatch) {
+        const s = manager.get(decodeURIComponent(snapshotMatch[1]));
+        return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols }));
+      }
       send(res, 404, 'text/plain; charset=utf-8', 'not found');
     } catch (err) {
       send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err));
