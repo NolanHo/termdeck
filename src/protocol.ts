@@ -5,15 +5,18 @@ import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import {
   ConfigureSchema,
   ControlSchema,
+  ExpectSchema,
   EnvelopeSchema,
   EventSchema,
   ExitSchema,
   KillSchema,
   ListSessionsSchema,
   NewSessionSchema,
+  PasswordSchema,
   PollSchema,
   RequestSchema,
   ResponseSchema,
+  ResizeSchema,
   RunSchema,
   ScreenSchema,
   ScrollbackSchema,
@@ -21,6 +24,7 @@ import {
   SessionInfoSchema,
   SubscribeSchema,
   StateSchema,
+  TranscriptSchema,
   type Envelope,
   type Event as PbEvent,
   type Request as PbRequest,
@@ -40,7 +44,11 @@ export type Request =
   | { id: number; op: 'list' }
   | { id: number; op: 'kill'; session: string }
   | { id: number; op: 'subscribe'; session: string; afterSeq?: number }
-  | { id: number; op: 'configure'; session: string; promptRegex?: string };
+  | { id: number; op: 'configure'; session: string; promptRegex?: string }
+  | { id: number; op: 'expect'; session: string; pattern: string; timeoutMs?: number }
+  | { id: number; op: 'password'; session: string; secret: string; timeoutMs?: number; quiescenceMs?: number }
+  | { id: number; op: 'transcript'; session: string }
+  | { id: number; op: 'resize'; session: string; rows: number; cols: number };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -54,6 +62,8 @@ export type Response = {
   timedOut?: boolean;
   sessions?: Array<{ id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number; promptRegex?: string }>;
   lastSeq?: number;
+  matched?: boolean;
+  transcript?: string;
 };
 
 export type Event =
@@ -152,6 +162,14 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { session, op: { case: 'subscribe', value: create(SubscribeSchema, { afterSeq: BigInt(req.afterSeq ?? 0) }) } });
     case 'configure':
       return create(RequestSchema, { session, op: { case: 'configure', value: create(ConfigureSchema, { promptRegex: req.promptRegex ?? '' }) } });
+    case 'expect':
+      return create(RequestSchema, { session, op: { case: 'expect', value: create(ExpectSchema, { pattern: req.pattern, timeoutMs: req.timeoutMs ?? 0 }) } });
+    case 'password':
+      return create(RequestSchema, { session, op: { case: 'password', value: create(PasswordSchema, { secret: req.secret, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+    case 'transcript':
+      return create(RequestSchema, { session, op: { case: 'transcript', value: create(TranscriptSchema) } });
+    case 'resize':
+      return create(RequestSchema, { session, op: { case: 'resize', value: create(ResizeSchema, { rows: req.rows, cols: req.cols }) } });
   }
 }
 
@@ -180,6 +198,14 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return { id, op: 'subscribe', session, afterSeq: Number(req.op.value.afterSeq) };
     case 'configure':
       return withDefined({ id, op: 'configure', session, promptRegex: req.op.value.promptRegex || undefined }) as Request;
+    case 'expect':
+      return withDefined({ id, op: 'expect', session, pattern: req.op.value.pattern, timeoutMs: req.op.value.timeoutMs || undefined }) as Request;
+    case 'password':
+      return withDefined({ id, op: 'password', session, secret: req.op.value.secret, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+    case 'transcript':
+      return { id, op: 'transcript', session };
+    case 'resize':
+      return { id, op: 'resize', session, rows: req.op.value.rows, cols: req.op.value.cols };
     default:
       throw new Error('empty request op');
   }
@@ -198,6 +224,8 @@ function toPbResponse(res: Response): PbResponse {
     screen: res.screen ?? '',
     timedOut: res.timedOut ?? false,
     lastSeq: BigInt(res.lastSeq ?? 0),
+    matched: res.matched ?? false,
+    transcript: res.transcript ?? '',
     sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
@@ -208,6 +236,8 @@ function fromPbResponse(id: number, res: PbResponse): Response {
   if (res.status) out.status = res.status as Status;
   if (res.output) out.output = res.output;
   if (res.screen) out.screen = res.screen;
+  if (res.matched) out.matched = res.matched;
+  if (res.transcript) out.transcript = res.transcript;
   return out;
 }
 

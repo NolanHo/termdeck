@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file termdeck/v1/termdeck.proto.
  */
 export const file_termdeck_v1_termdeck: GenFile = /*@__PURE__*/
-  fileDesc("Chp0ZXJtZGVjay92MS90ZXJtZGVjay5wcm90bxILdGVybWRlY2sudjEipAEKCEVudmVsb3BlEgoKAmlkGAEgASgEEgsKA3NlcRgCIAEoBBInCgdyZXF1ZXN0GAogASgLMhQudGVybWRlY2sudjEuUmVxdWVzdEgAEikKCHJlc3BvbnNlGAsgASgLMhUudGVybWRlY2sudjEuUmVzcG9uc2VIABIjCgVldmVudBgMIAEoCzISLnRlcm1kZWNrLnYxLkV2ZW50SABCBgoEYm9keSLnAwoHUmVxdWVzdBIPCgdzZXNzaW9uGAEgASgJEi4KC25ld19zZXNzaW9uGAogASgLMhcudGVybWRlY2sudjEuTmV3U2Vzc2lvbkgAEh8KA3J1bhgLIAEoCzIQLnRlcm1kZWNrLnYxLlJ1bkgAEiEKBHNlbmQYDCABKAsyES50ZXJtZGVjay52MS5TZW5kSAASJwoHY29udHJvbBgNIAEoCzIULnRlcm1kZWNrLnYxLkNvbnRyb2xIABIhCgRwb2xsGA4gASgLMhEudGVybWRlY2sudjEuUG9sbEgAEiUKBnNjcmVlbhgPIAEoCzITLnRlcm1kZWNrLnYxLlNjcmVlbkgAEi0KCnNjcm9sbGJhY2sYECABKAsyFy50ZXJtZGVjay52MS5TY3JvbGxiYWNrSAASMgoNbGlzdF9zZXNzaW9ucxgRIAEoCzIZLnRlcm1kZWNrLnYxLkxpc3RTZXNzaW9uc0gAEiEKBGtpbGwYEiABKAsyES50ZXJtZGVjay52MS5LaWxsSAASKwoJc3Vic2NyaWJlGBMgASgLMhYudGVybWRlY2sudjEuU3Vic2NyaWJlSAASKwoJY29uZmlndXJlGBQgASgLMhYudGVybWRlY2sudjEuQ29uZmlndXJlSABCBAoCb3AipgEKCFJlc3BvbnNlEgoKAm9rGAEgASgIEg0KBWVycm9yGAIgASgJEg4KBnN0YXR1cxgDIAEoCRIOCgZvdXRwdXQYBCABKAkSDgoGc2NyZWVuGAUgASgJEhEKCXRpbWVkX291dBgGIAEoCBIqCghzZXNzaW9ucxgHIAMoCzIYLnRlcm1kZWNrLnYxLlNlc3Npb25JbmZvEhAKCGxhc3Rfc2VxGAggASgEIs4BCgVFdmVudBIPCgdzZXNzaW9uGAEgASgJEgsKA3NlcRgCIAEoBBINCgV0c19tcxgDIAEoAxIQCgZvdXRwdXQYCiABKAxIABIPCgVpbnB1dBgLIAEoDEgAEiUKBnJlc2l6ZRgMIAEoCzITLnRlcm1kZWNrLnYxLlJlc2l6ZUgAEiMKBXN0YXRlGA0gASgLMhIudGVybWRlY2sudjEuU3RhdGVIABIhCgRleGl0GA4gASgLMhEudGVybWRlY2sudjEuRXhpdEgAQgYKBGtpbmQiWgoKTmV3U2Vzc2lvbhILCgNjd2QYASABKAkSDQoFc2hlbGwYAiABKAkSDAoEcm93cxgDIAEoDRIMCgRjb2xzGAQgASgNEhQKDHByb21wdF9yZWdleBgFIAEoCSJBCgNSdW4SDwoHY29tbWFuZBgBIAEoCRISCgp0aW1lb3V0X21zGAIgASgNEhUKDXF1aWVzY2VuY2VfbXMYAyABKA0iPwoEU2VuZBIMCgRkYXRhGAEgASgMEhIKCnRpbWVvdXRfbXMYAiABKA0SFQoNcXVpZXNjZW5jZV9tcxgDIAEoDSJBCgdDb250cm9sEgsKA2tleRgBIAEoCRISCgp0aW1lb3V0X21zGAIgASgNEhUKDXF1aWVzY2VuY2VfbXMYAyABKA0iMQoEUG9sbBISCgp0aW1lb3V0X21zGAEgASgNEhUKDXF1aWVzY2VuY2VfbXMYAiABKA0iCAoGU2NyZWVuIhsKClNjcm9sbGJhY2sSDQoFbGluZXMYASABKA0iDgoMTGlzdFNlc3Npb25zIgYKBEtpbGwiHgoJU3Vic2NyaWJlEhEKCWFmdGVyX3NlcRgBIAEoBCIhCglDb25maWd1cmUSFAoMcHJvbXB0X3JlZ2V4GAEgASgJIiQKBlJlc2l6ZRIMCgRyb3dzGAEgASgNEgwKBGNvbHMYAiABKA0iJwoFU3RhdGUSDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIkCgRFeGl0EgwKBGNvZGUYASABKAUSDgoGc2lnbmFsGAIgASgJInoKC1Nlc3Npb25JbmZvEgoKAmlkGAEgASgJEgsKA2N3ZBgCIAEoCRIMCgRyb3dzGAMgASgNEgwKBGNvbHMYBCABKA0SDgoGc3RhdHVzGAUgASgJEhAKCGxhc3Rfc2VxGAYgASgEEhQKDHByb21wdF9yZWdleBgHIAEoCWIGcHJvdG8z");
+  fileDesc("Chp0ZXJtZGVjay92MS90ZXJtZGVjay5wcm90bxILdGVybWRlY2sudjEipAEKCEVudmVsb3BlEgoKAmlkGAEgASgEEgsKA3NlcRgCIAEoBBInCgdyZXF1ZXN0GAogASgLMhQudGVybWRlY2sudjEuUmVxdWVzdEgAEikKCHJlc3BvbnNlGAsgASgLMhUudGVybWRlY2sudjEuUmVzcG9uc2VIABIjCgVldmVudBgMIAEoCzISLnRlcm1kZWNrLnYxLkV2ZW50SABCBgoEYm9keSKPBQoHUmVxdWVzdBIPCgdzZXNzaW9uGAEgASgJEi4KC25ld19zZXNzaW9uGAogASgLMhcudGVybWRlY2sudjEuTmV3U2Vzc2lvbkgAEh8KA3J1bhgLIAEoCzIQLnRlcm1kZWNrLnYxLlJ1bkgAEiEKBHNlbmQYDCABKAsyES50ZXJtZGVjay52MS5TZW5kSAASJwoHY29udHJvbBgNIAEoCzIULnRlcm1kZWNrLnYxLkNvbnRyb2xIABIhCgRwb2xsGA4gASgLMhEudGVybWRlY2sudjEuUG9sbEgAEiUKBnNjcmVlbhgPIAEoCzITLnRlcm1kZWNrLnYxLlNjcmVlbkgAEi0KCnNjcm9sbGJhY2sYECABKAsyFy50ZXJtZGVjay52MS5TY3JvbGxiYWNrSAASMgoNbGlzdF9zZXNzaW9ucxgRIAEoCzIZLnRlcm1kZWNrLnYxLkxpc3RTZXNzaW9uc0gAEiEKBGtpbGwYEiABKAsyES50ZXJtZGVjay52MS5LaWxsSAASKwoJc3Vic2NyaWJlGBMgASgLMhYudGVybWRlY2sudjEuU3Vic2NyaWJlSAASKwoJY29uZmlndXJlGBQgASgLMhYudGVybWRlY2sudjEuQ29uZmlndXJlSAASJQoGZXhwZWN0GBUgASgLMhMudGVybWRlY2sudjEuRXhwZWN0SAASKQoIcGFzc3dvcmQYFiABKAsyFS50ZXJtZGVjay52MS5QYXNzd29yZEgAEi0KCnRyYW5zY3JpcHQYFyABKAsyFy50ZXJtZGVjay52MS5UcmFuc2NyaXB0SAASJQoGcmVzaXplGBggASgLMhMudGVybWRlY2sudjEuUmVzaXplSABCBAoCb3AiywEKCFJlc3BvbnNlEgoKAm9rGAEgASgIEg0KBWVycm9yGAIgASgJEg4KBnN0YXR1cxgDIAEoCRIOCgZvdXRwdXQYBCABKAkSDgoGc2NyZWVuGAUgASgJEhEKCXRpbWVkX291dBgGIAEoCBIqCghzZXNzaW9ucxgHIAMoCzIYLnRlcm1kZWNrLnYxLlNlc3Npb25JbmZvEhAKCGxhc3Rfc2VxGAggASgEEg8KB21hdGNoZWQYCSABKAgSEgoKdHJhbnNjcmlwdBgKIAEoCSLOAQoFRXZlbnQSDwoHc2Vzc2lvbhgBIAEoCRILCgNzZXEYAiABKAQSDQoFdHNfbXMYAyABKAMSEAoGb3V0cHV0GAogASgMSAASDwoFaW5wdXQYCyABKAxIABIlCgZyZXNpemUYDCABKAsyEy50ZXJtZGVjay52MS5SZXNpemVIABIjCgVzdGF0ZRgNIAEoCzISLnRlcm1kZWNrLnYxLlN0YXRlSAASIQoEZXhpdBgOIAEoCzIRLnRlcm1kZWNrLnYxLkV4aXRIAEIGCgRraW5kIloKCk5ld1Nlc3Npb24SCwoDY3dkGAEgASgJEg0KBXNoZWxsGAIgASgJEgwKBHJvd3MYAyABKA0SDAoEY29scxgEIAEoDRIUCgxwcm9tcHRfcmVnZXgYBSABKAkiQQoDUnVuEg8KB2NvbW1hbmQYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIj8KBFNlbmQSDAoEZGF0YRgBIAEoDBISCgp0aW1lb3V0X21zGAIgASgNEhUKDXF1aWVzY2VuY2VfbXMYAyABKA0iQQoHQ29udHJvbBILCgNrZXkYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIjEKBFBvbGwSEgoKdGltZW91dF9tcxgBIAEoDRIVCg1xdWllc2NlbmNlX21zGAIgASgNIggKBlNjcmVlbiIbCgpTY3JvbGxiYWNrEg0KBWxpbmVzGAEgASgNIg4KDExpc3RTZXNzaW9ucyIGCgRLaWxsIh4KCVN1YnNjcmliZRIRCglhZnRlcl9zZXEYASABKAQiIQoJQ29uZmlndXJlEhQKDHByb21wdF9yZWdleBgBIAEoCSItCgZFeHBlY3QSDwoHcGF0dGVybhgBIAEoCRISCgp0aW1lb3V0X21zGAIgASgNIkUKCFBhc3N3b3JkEg4KBnNlY3JldBgBIAEoCRISCgp0aW1lb3V0X21zGAIgASgNEhUKDXF1aWVzY2VuY2VfbXMYAyABKA0iDAoKVHJhbnNjcmlwdCIkCgZSZXNpemUSDAoEcm93cxgBIAEoDRIMCgRjb2xzGAIgASgNIicKBVN0YXRlEg4KBnN0YXR1cxgBIAEoCRIOCgZyZWFzb24YAiABKAkiJAoERXhpdBIMCgRjb2RlGAEgASgFEg4KBnNpZ25hbBgCIAEoCSJ6CgtTZXNzaW9uSW5mbxIKCgJpZBgBIAEoCRILCgNjd2QYAiABKAkSDAoEcm93cxgDIAEoDRIMCgRjb2xzGAQgASgNEg4KBnN0YXR1cxgFIAEoCRIQCghsYXN0X3NlcRgGIAEoBBIUCgxwcm9tcHRfcmVnZXgYByABKAliBnByb3RvMw");
 
 /**
  * @generated from message termdeck.v1.Envelope
@@ -135,6 +135,30 @@ export type Request = Message<"termdeck.v1.Request"> & {
      */
     value: Configure;
     case: "configure";
+  } | {
+    /**
+     * @generated from field: termdeck.v1.Expect expect = 21;
+     */
+    value: Expect;
+    case: "expect";
+  } | {
+    /**
+     * @generated from field: termdeck.v1.Password password = 22;
+     */
+    value: Password;
+    case: "password";
+  } | {
+    /**
+     * @generated from field: termdeck.v1.Transcript transcript = 23;
+     */
+    value: Transcript;
+    case: "transcript";
+  } | {
+    /**
+     * @generated from field: termdeck.v1.Resize resize = 24;
+     */
+    value: Resize;
+    case: "resize";
   } | { case: undefined; value?: undefined };
 };
 
@@ -188,6 +212,16 @@ export type Response = Message<"termdeck.v1.Response"> & {
    * @generated from field: uint64 last_seq = 8;
    */
   lastSeq: bigint;
+
+  /**
+   * @generated from field: bool matched = 9;
+   */
+  matched: boolean;
+
+  /**
+   * @generated from field: string transcript = 10;
+   */
+  transcript: string;
 };
 
 /**
@@ -490,6 +524,68 @@ export const ConfigureSchema: GenMessage<Configure> = /*@__PURE__*/
   messageDesc(file_termdeck_v1_termdeck, 14);
 
 /**
+ * @generated from message termdeck.v1.Expect
+ */
+export type Expect = Message<"termdeck.v1.Expect"> & {
+  /**
+   * @generated from field: string pattern = 1;
+   */
+  pattern: string;
+
+  /**
+   * @generated from field: uint32 timeout_ms = 2;
+   */
+  timeoutMs: number;
+};
+
+/**
+ * Describes the message termdeck.v1.Expect.
+ * Use `create(ExpectSchema)` to create a new message.
+ */
+export const ExpectSchema: GenMessage<Expect> = /*@__PURE__*/
+  messageDesc(file_termdeck_v1_termdeck, 15);
+
+/**
+ * @generated from message termdeck.v1.Password
+ */
+export type Password = Message<"termdeck.v1.Password"> & {
+  /**
+   * @generated from field: string secret = 1;
+   */
+  secret: string;
+
+  /**
+   * @generated from field: uint32 timeout_ms = 2;
+   */
+  timeoutMs: number;
+
+  /**
+   * @generated from field: uint32 quiescence_ms = 3;
+   */
+  quiescenceMs: number;
+};
+
+/**
+ * Describes the message termdeck.v1.Password.
+ * Use `create(PasswordSchema)` to create a new message.
+ */
+export const PasswordSchema: GenMessage<Password> = /*@__PURE__*/
+  messageDesc(file_termdeck_v1_termdeck, 16);
+
+/**
+ * @generated from message termdeck.v1.Transcript
+ */
+export type Transcript = Message<"termdeck.v1.Transcript"> & {
+};
+
+/**
+ * Describes the message termdeck.v1.Transcript.
+ * Use `create(TranscriptSchema)` to create a new message.
+ */
+export const TranscriptSchema: GenMessage<Transcript> = /*@__PURE__*/
+  messageDesc(file_termdeck_v1_termdeck, 17);
+
+/**
  * @generated from message termdeck.v1.Resize
  */
 export type Resize = Message<"termdeck.v1.Resize"> & {
@@ -509,7 +605,7 @@ export type Resize = Message<"termdeck.v1.Resize"> & {
  * Use `create(ResizeSchema)` to create a new message.
  */
 export const ResizeSchema: GenMessage<Resize> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 15);
+  messageDesc(file_termdeck_v1_termdeck, 18);
 
 /**
  * @generated from message termdeck.v1.State
@@ -531,7 +627,7 @@ export type State = Message<"termdeck.v1.State"> & {
  * Use `create(StateSchema)` to create a new message.
  */
 export const StateSchema: GenMessage<State> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 16);
+  messageDesc(file_termdeck_v1_termdeck, 19);
 
 /**
  * @generated from message termdeck.v1.Exit
@@ -553,7 +649,7 @@ export type Exit = Message<"termdeck.v1.Exit"> & {
  * Use `create(ExitSchema)` to create a new message.
  */
 export const ExitSchema: GenMessage<Exit> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 17);
+  messageDesc(file_termdeck_v1_termdeck, 20);
 
 /**
  * @generated from message termdeck.v1.SessionInfo
@@ -600,5 +696,5 @@ export type SessionInfo = Message<"termdeck.v1.SessionInfo"> & {
  * Use `create(SessionInfoSchema)` to create a new message.
  */
 export const SessionInfoSchema: GenMessage<SessionInfo> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 18);
+  messageDesc(file_termdeck_v1_termdeck, 21);
 

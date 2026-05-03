@@ -125,6 +125,23 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         s.configure(req.promptRegex);
         return { id: req.id, ok: true, status: s.status().status };
       }
+      case 'expect': {
+        const r = await manager.get(req.session).expect(req.pattern, req.timeoutMs);
+        return { id: req.id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut, matched: r.matched };
+      }
+      case 'password': {
+        const r = await manager.get(req.session).password(req.secret, req.timeoutMs, req.quiescenceMs);
+        return { id: req.id, ok: true, status: r.status, output: '[password sent]', timedOut: r.timedOut };
+      }
+      case 'transcript': {
+        const s = manager.get(req.session);
+        return { id: req.id, ok: true, transcript: s.transcriptFile(), status: s.status().status };
+      }
+      case 'resize': {
+        const s = manager.get(req.session);
+        s.resize(req.rows, req.cols);
+        return { id: req.id, ok: true, status: s.status().status };
+      }
       default: {
         if (req.op === 'subscribe') {
           if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };

@@ -50,6 +50,7 @@ export class TermSession extends EventEmitter {
   private readonly term: InstanceType<typeof Terminal>;
   private readonly ring = new TextRing();
   private readonly transcript;
+  private readonly transcriptPath: string;
   private readonly eventsPath: string;
   private readonly events: Event[] = [];
   private seq = 0;
@@ -67,7 +68,8 @@ export class TermSession extends EventEmitter {
 
     const dir = sessionDir(this.id);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    this.transcript = createWriteStream(join(dir, 'transcript.log'), { flags: 'a', mode: 0o600 });
+    this.transcriptPath = join(dir, 'transcript.log');
+    this.transcript = createWriteStream(this.transcriptPath, { flags: 'a', mode: 0o600 });
     this.eventsPath = join(dir, 'events.jsonl');
     this.loadEvents();
     this.term = new Terminal({ rows: this.rows, cols: this.cols, allowProposedApi: true });
@@ -112,6 +114,43 @@ export class TermSession extends EventEmitter {
 
   poll(timeoutMs = 100, quiescenceMs = 1_000): Promise<WaitResult> {
     return this.waitForOutput(this.ring.mark(), timeoutMs, quiescenceMs, true);
+  }
+
+  password(secret: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
+    return this.writeAndWait(`${secret}\r`, timeoutMs, quiescenceMs, false);
+  }
+
+  async expect(pattern: string, timeoutMs = 30_000): Promise<WaitResult & { matched: boolean }> {
+    const rx = new RegExp(pattern);
+    const mark = this.ring.mark();
+    if (rx.test(this.ring.all())) return { output: '', status: this.status().status, timedOut: false, matched: true };
+    const deadline = Date.now() + timeoutMs;
+    return new Promise((resolve) => {
+      const done = (matched: boolean, timedOut: boolean) => {
+        clearInterval(timer);
+        this.off('output', onOutput);
+        const state = this.status();
+        resolve({ output: this.ring.since(mark), status: state.status, timedOut, matched });
+      };
+      const onOutput = () => {
+        if (rx.test(this.ring.since(mark))) done(true, false);
+      };
+      const timer = setInterval(() => {
+        if (rx.test(this.ring.since(mark))) return done(true, false);
+        if (Date.now() >= deadline) return done(false, true);
+      }, 25);
+      this.on('output', onOutput);
+    });
+  }
+
+  transcriptFile(): string {
+    return this.transcriptPath;
+  }
+
+  resize(rows: number, cols: number): void {
+    this.ptyProcess.resize(cols, rows);
+    this.term.resize(cols, rows);
+    this.emitEvent({ kind: 'state', status: this.status().status, reason: 'resized' });
   }
 
   screen(): string {

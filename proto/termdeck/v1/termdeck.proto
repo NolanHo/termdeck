@@ -28,6 +28,10 @@ message Request {
     Kill kill = 18;
     Subscribe subscribe = 19;
     Configure configure = 20;
+    Expect expect = 21;
+    Password password = 22;
+    Transcript transcript = 23;
+    Resize resize = 24;
   }
 }
 
@@ -40,6 +44,8 @@ message Response {
   bool timed_out = 6;
   repeated SessionInfo sessions = 7;
   uint64 last_seq = 8;
+  bool matched = 9;
+  string transcript = 10;
 }
 
 message Event {
@@ -104,6 +110,19 @@ message Subscribe {
 message Configure {
   string prompt_regex = 1;
 }
+
+message Expect {
+  string pattern = 1;
+  uint32 timeout_ms = 2;
+}
+
+message Password {
+  string secret = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+}
+
+message Transcript {}
 
 message Resize {
   uint32 rows = 1;
