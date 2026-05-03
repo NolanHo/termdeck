@@ -1,19 +1,14 @@
-import { platform } from 'node:os';
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
-export const isWindows = platform() === 'win32';
-
 export function signalProcessGroup(pid: number, signal: string): { mode: 'process-group' | 'process'; detail: string } {
   signal = normalizeSignal(signal);
-  if (!isWindows) {
-    const fg = foregroundProcessGroup(pid) ?? pid;
-    try {
-      process.kill(-fg, signal as NodeJS.Signals);
-      return { mode: 'process-group', detail: `sent ${signal} to process group ${fg}` };
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ESRCH') throw err;
-    }
+  const fg = foregroundProcessGroup(pid) ?? pid;
+  try {
+    process.kill(-fg, signal as NodeJS.Signals);
+    return { mode: 'process-group', detail: `sent ${signal} to process group ${fg}` };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ESRCH') throw err;
   }
   process.kill(pid, signal as NodeJS.Signals);
   return { mode: 'process', detail: `sent ${signal} to process ${pid}` };
