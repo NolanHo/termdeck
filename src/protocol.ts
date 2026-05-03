@@ -110,8 +110,8 @@ export class FrameReader extends EventEmitter {
   }
 }
 
-export function writeFrame(socket: Socket, frame: Frame): void {
-  socket.write(encodeFrame(frame));
+export function writeFrame(socket: Socket, frame: Frame): boolean {
+  return socket.write(encodeFrame(frame));
 }
 
 function toEnvelope(frame: Frame): Envelope {

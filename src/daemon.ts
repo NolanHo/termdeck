@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
-import { createServer as createHttpServer, type IncomingMessage } from 'node:http';
-import type { Duplex } from 'node:stream';
 import { createHash } from 'node:crypto';
-import { createServer, Socket } from 'node:net';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer } from 'node:http';
 import { createRequire } from 'node:module';
+import { createServer, Socket, type Server as NetServer } from 'node:net';
+import { dirname, resolve } from 'node:path';
+import type { Duplex } from 'node:stream';
 import { FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
 import { rootDir, socketPath } from './paths.js';
 import { TermSession } from './session.js';
@@ -14,13 +14,17 @@ const require = createRequire(import.meta.url);
 const xtermJsPath = require.resolve('@xterm/xterm');
 const xtermCssPath = require.resolve('@xterm/xterm/css/xterm.css');
 
+type Subscriber = { socket: Socket; session: string };
+
 class SessionManager {
   private readonly sessions = new Map<string, TermSession>();
-  private readonly subscribers = new Set<Socket>();
+  private readonly subscribers = new Set<Subscriber>();
 
   terminateAll(): void {
     for (const s of this.sessions.values()) s.kill();
     this.sessions.clear();
+    for (const sub of this.subscribers) sub.socket.destroy();
+    this.subscribers.clear();
   }
 
   get(id: string): TermSession {
@@ -48,10 +52,6 @@ class SessionManager {
     return [...this.sessions.values()].map((s) => s.info());
   }
 
-  listSessions(): TermSession[] {
-    return [...this.sessions.values()];
-  }
-
   kill(id: string): void {
     const s = this.get(id);
     s.kill();
@@ -60,24 +60,25 @@ class SessionManager {
 
   subscribe(socket: Socket, session: string, afterSeq: number): void {
     const s = this.get(session);
-    this.subscribers.add(socket);
-    socket.on('close', () => this.subscribers.delete(socket));
-    for (const event of s.eventsAfter(afterSeq)) writeFrame(socket, { type: 'event', payload: event });
+    const sub = { socket, session };
+    this.subscribers.add(sub);
+    socket.on('close', () => this.subscribers.delete(sub));
+    for (const event of s.eventsAfter(afterSeq)) {
+      if (!writeFrame(socket, { type: 'event', payload: event })) {
+        this.subscribers.delete(sub);
+        socket.destroy();
+        return;
+      }
+    }
   }
 
   private fanout(event: Event): void {
-    for (const socket of this.subscribers) {
-      if (socket.destroyed || !socket.writable) {
-        this.subscribers.delete(socket);
-        continue;
+    for (const sub of this.subscribers) {
+      if (sub.session !== event.session) continue;
+      if (sub.socket.destroyed || !sub.socket.writable || !writeFrame(sub.socket, { type: 'event', payload: event })) {
+        this.subscribers.delete(sub);
+        sub.socket.destroy();
       }
-      const ok = socket.write(Buffer.from([]));
-      if (!ok) {
-        this.subscribers.delete(socket);
-        socket.destroy();
-        continue;
-      }
-      writeFrame(socket, { type: 'event', payload: event });
     }
   }
 }
@@ -147,36 +148,26 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         s.resize(req.rows, req.cols);
         return { id: req.id, ok: true, status: s.status().status };
       }
-      default: {
-        if (req.op === 'subscribe') {
-          if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };
-          manager.subscribe(socket, req.session, req.afterSeq ?? 0);
-          return { id: req.id, ok: true, status: 'ready' };
-        }
-        return assertNever(req);
+      case 'subscribe': {
+        if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };
+        manager.subscribe(socket, req.session, req.afterSeq ?? 0);
+        return { id: req.id, ok: true, status: 'ready' };
       }
+      default:
+        return assertNever(req);
     }
   } catch (err) {
     return { id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-export function main(): void {
+export async function main(): Promise<void> {
   mkdirSync(rootDir, { recursive: true, mode: 0o700 });
   mkdirSync(dirname(socketPath), { recursive: true, mode: 0o700 });
-  removeStaleSocket();
+  await removeStaleSocket();
 
-  startWebServer();
-
-  const server = createServer((socket: Socket) => {
-    const reader = new FrameReader(socket);
-    reader.on('frame', (frame) => {
-      if (frame.type !== 'request') return;
-      void handle(frame.payload, socket).then((response) => {
-        writeFrame(socket, { type: 'response', payload: response });
-      });
-    });
-  });
+  const webServer = startWebServer();
+  const server = createDaemonServer();
 
   server.listen(socketPath, () => {
     console.log(`termdeckd listening on ${socketPath}`);
@@ -185,6 +176,7 @@ export function main(): void {
   const shutdown = () => {
     manager.terminateAll();
     server.close();
+    webServer.close();
     try {
       rmSync(socketPath);
     } catch {}
@@ -194,40 +186,60 @@ export function main(): void {
   process.on('SIGTERM', shutdown);
 }
 
-function removeStaleSocket(): void {
-  if (!existsSync(socketPath)) return;
-  const probe = new Socket();
-  probe.once('connect', () => {
-    console.error(`termdeckd already running at ${socketPath}`);
-    process.exit(1);
+function createDaemonServer(): NetServer {
+  return createServer((socket: Socket) => {
+    const reader = new FrameReader(socket);
+    reader.on('frame', (frame) => {
+      if (frame.type !== 'request') return;
+      void handle(frame.payload, socket).then((response) => {
+        writeFrame(socket, { type: 'response', payload: response });
+      });
+    });
   });
-  probe.once('error', () => {
-    try {
-      rmSync(socketPath);
-    } catch {}
-  });
-  probe.connect(socketPath);
 }
 
-function startWebServer(): void {
+async function removeStaleSocket(): Promise<void> {
+  if (!existsSync(socketPath)) return;
+  await new Promise<void>((resolve) => {
+    const probe = new Socket();
+    probe.once('connect', () => {
+      console.error(`termdeckd already running at ${socketPath}`);
+      process.exit(1);
+    });
+    probe.once('error', () => {
+      try {
+        rmSync(socketPath);
+      } catch {}
+      resolve();
+    });
+    probe.connect(socketPath);
+  });
+}
+
+function startWebServer(): HttpServer {
   const port = Number(process.env.TERMDECK_WEB_PORT ?? 8765);
   const server = createHttpServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
-    if (url.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', webHtml);
-    if (url.pathname === '/app.js') return send(res, 200, 'text/javascript; charset=utf-8', webAppJs);
-    if (url.pathname === '/xterm.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermJsPath));
-    if (url.pathname === '/xterm.css') return send(res, 200, 'text/css; charset=utf-8', readFileSync(xtermCssPath));
-    if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
-    const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
-    if (screenMatch) {
-      const s = manager.get(decodeURIComponent(screenMatch[1]));
-      return send(res, 200, 'application/json', JSON.stringify({ screen: s.screen(), status: s.status().status, lastSeq: s.info().lastSeq }));
+    try {
+      if (url.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', webHtml);
+      if (url.pathname === '/app.js') return send(res, 200, 'text/javascript; charset=utf-8', webAppJs);
+      if (url.pathname === '/xterm.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermJsPath));
+      if (url.pathname === '/xterm.css') return send(res, 200, 'text/css; charset=utf-8', readFileSync(xtermCssPath));
+      if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
+      const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
+      if (screenMatch) {
+        const s = manager.get(decodeURIComponent(screenMatch[1]));
+        return send(res, 200, 'application/json', JSON.stringify({ screen: s.screen(), status: s.status().status, lastSeq: s.info().lastSeq }));
+      }
+      send(res, 404, 'text/plain; charset=utf-8', 'not found');
+    } catch (err) {
+      send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err));
     }
-    send(res, 404, 'text/plain; charset=utf-8', 'not found');
   });
 
   server.on('upgrade', (req, socket) => handleWebSocketUpgrade(req, socket));
   server.listen(port, '127.0.0.1', () => console.log(`termdeck web listening on http://127.0.0.1:${port}`));
+  return server;
 }
 
 function send(res: { writeHead(code: number, headers: Record<string, string>): void; end(body: string | Buffer): void }, code: number, contentType: string, body: string | Buffer): void {
@@ -271,4 +283,4 @@ function wsText(text: string): Buffer {
   return Buffer.concat([header, payload]);
 }
 
-main();
+void main();
