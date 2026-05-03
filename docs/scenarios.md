@@ -1,10 +1,6 @@
 # TermDeck Scenarios
 
-This document describes practical terminal-control patterns for agents and automation. All examples assume the daemon is already running and the CLI uses the same `TERMDECK_HOME` as the daemon.
-
-```bash
-export TERMDECK_HOME=/var/lib/termdeck
-```
+This document describes practical terminal-control patterns for agents and automation. All examples assume the daemon is already running and the CLI uses the same `TERMDECK_HOME` as the daemon. For a local deployment, put a wrapper such as `termdeck-local` on `PATH` so callers do not repeat the environment variable.
 
 ## 1. Long-running build or test command
 

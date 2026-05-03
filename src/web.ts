@@ -6,20 +6,36 @@ export const webHtml = `<!doctype html>
   <title>TermDeck</title>
   <link rel="stylesheet" href="/xterm.css" />
   <style>
-    body { margin: 0; background: #0b1020; color: #d7dde8; font: 14px sans-serif; }
-    header { padding: 10px 14px; border-bottom: 1px solid #1f2a44; display: flex; gap: 12px; align-items: center; }
-    select { background: #111827; color: #d7dde8; border: 1px solid #334155; padding: 4px 8px; }
-    #terminal { height: calc(100vh - 46px); padding: 8px; box-sizing: border-box; }
-    .muted { color: #94a3b8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b1020; color: #d7dde8; font: 14px sans-serif; overflow: hidden; }
+    #app { height: 100vh; display: grid; grid-template-columns: 220px 1fr; }
+    #sidebar { border-right: 1px solid #1f2a44; background: #080d1a; display: flex; flex-direction: column; min-width: 0; }
+    #brand { height: 46px; padding: 13px 14px; border-bottom: 1px solid #1f2a44; font-weight: 700; }
+    #sessions { padding: 8px; overflow-y: auto; flex: 1; }
+    .tab { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 8px; margin-bottom: 6px; background: transparent; color: #d7dde8; text-align: left; cursor: pointer; }
+    .tab:hover { background: #111827; }
+    .tab.active { background: #172033; border-color: #334155; }
+    .tab-id { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tab-meta { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; }
+    #main { min-width: 0; display: grid; grid-template-rows: 46px 1fr; }
+    #topbar { border-bottom: 1px solid #1f2a44; display: flex; align-items: center; gap: 14px; padding: 0 14px; min-width: 0; }
+    #title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #status { color: #94a3b8; white-space: nowrap; }
+    #terminal-wrap { min-height: 0; padding: 8px; }
+    #terminal { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
-  <header>
-    <strong>TermDeck</strong>
-    <label>session <select id="sessions"></select></label>
-    <span class="muted" id="status">observe-only</span>
-  </header>
-  <div id="terminal"></div>
+  <div id="app">
+    <aside id="sidebar">
+      <div id="brand">TermDeck</div>
+      <div id="sessions"></div>
+    </aside>
+    <main id="main">
+      <div id="topbar"><span id="title">No session</span><span id="status">observe-only</span></div>
+      <div id="terminal-wrap"><div id="terminal"></div></div>
+    </main>
+  </div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>`;
@@ -27,8 +43,9 @@ export const webHtml = `<!doctype html>
 export const webAppJs = `import { Terminal } from '/xterm.js';
 import { FitAddon } from '/xterm-addon-fit.js';
 
-const select = document.querySelector('#sessions');
+const sessionsEl = document.querySelector('#sessions');
 const status = document.querySelector('#status');
+const title = document.querySelector('#title');
 const utf8 = new TextDecoder();
 const fit = new FitAddon();
 const term = new Terminal({ convertEol: true, cursorBlink: false, disableStdin: true });
@@ -37,49 +54,74 @@ term.open(document.querySelector('#terminal'));
 fit.fit();
 
 let ws;
+let sessions = [];
 let currentSession;
 let lastSeq = 0;
 let reconnectTimer;
+let refreshTimer;
 
 async function refreshSessions() {
   const res = await fetch('/api/sessions');
-  const sessions = await res.json();
-  select.replaceChildren(...sessions.map((s) => {
-    const opt = document.createElement('option');
-    opt.value = s.id;
-    opt.textContent = s.id + ' ' + s.status;
-    return opt;
+  sessions = await res.json();
+  renderTabs();
+  if (!currentSession && sessions.length > 0) openSession(sessions[0].id);
+  if (currentSession && !sessions.some((s) => s.id === currentSession)) closeSession();
+}
+
+function renderTabs() {
+  sessionsEl.replaceChildren(...sessions.map((s) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (s.id === currentSession ? ' active' : '');
+    btn.type = 'button';
+    btn.innerHTML = '<span class="tab-id"></span><span class="tab-meta"></span>';
+    btn.querySelector('.tab-id').textContent = s.id;
+    btn.querySelector('.tab-meta').textContent = s.status + ' seq=' + s.lastSeq;
+    btn.addEventListener('click', () => openSession(s.id));
+    return btn;
   }));
-  if (sessions.length > 0) openSession(sessions[0].id);
-  else status.textContent = 'no sessions';
+  if (sessions.length === 0) sessionsEl.textContent = 'No sessions';
 }
 
 async function openSession(id) {
   if (ws) ws.close();
   currentSession = id;
   lastSeq = 0;
-  term.clear();
+  title.textContent = id;
+  term.reset();
+  renderTabs();
   const snap = await fetch('/api/sessions/' + encodeURIComponent(id) + '/screen').then((r) => r.json());
   lastSeq = snap.lastSeq || 0;
   if (snap.screen) term.write(snap.screen.replace(/\n/g, '\r\n'));
+  status.textContent = snap.status ? id + ' ' + snap.status + ' seq=' + lastSeq : 'observing ' + id;
   connectEvents(id);
+  setTimeout(() => fit.fit(), 0);
+}
+
+function closeSession() {
+  if (ws) ws.close();
+  currentSession = undefined;
+  lastSeq = 0;
+  title.textContent = 'No session';
+  status.textContent = 'no sessions';
+  term.reset();
 }
 
 function connectEvents(id) {
   clearTimeout(reconnectTimer);
   ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq);
   ws.binaryType = 'arraybuffer';
-  ws.onopen = () => { status.textContent = 'observing ' + id; };
+  ws.onopen = () => { status.textContent = 'observing ' + id + ' seq=' + lastSeq; };
   ws.onmessage = (msg) => {
     const event = decodeEvent(new Uint8Array(msg.data));
     if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
     if (event.kind === 'output') term.write(event.data);
-    if (event.kind === 'state') status.textContent = id + ' ' + event.status;
-    if (event.kind === 'exit') status.textContent = id + ' exited';
+    if (event.kind === 'state') status.textContent = id + ' ' + event.status + ' seq=' + lastSeq;
+    if (event.kind === 'exit') status.textContent = id + ' exited seq=' + lastSeq;
   };
   ws.onclose = () => {
-    status.textContent = 'disconnected';
-    if (currentSession === id) reconnectTimer = setTimeout(() => connectEvents(id), 1000);
+    if (currentSession !== id) return;
+    status.textContent = 'disconnected seq=' + lastSeq;
+    reconnectTimer = setTimeout(() => connectEvents(id), 1000);
   };
 }
 
@@ -144,5 +186,6 @@ function skip(r, wire) {
 }
 
 window.addEventListener('resize', () => fit.fit());
-select.addEventListener('change', () => openSession(select.value));
-refreshSessions();`;
+refreshSessions();
+refreshTimer = setInterval(refreshSessions, 3000);
+window.addEventListener('beforeunload', () => clearInterval(refreshTimer));`;

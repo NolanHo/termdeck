@@ -32,6 +32,16 @@ export TERMDECK_HOME="$PWD/.termdeck"
 termdeckd
 ```
 
+For a machine-wide local deployment, write the env var into a wrapper in a directory on `PATH`:
+
+```bash
+cat >/usr/local/bin/termdeck-local <<'SH'
+#!/bin/sh
+TERMDECK_HOME=/var/lib/termdeck exec termdeck "$@"
+SH
+chmod +x /usr/local/bin/termdeck-local
+```
+
 To enable the web UI:
 
 ```bash
@@ -76,6 +86,18 @@ Run a command and wait for output quiescence:
 
 ```bash
 termdeck run main 'pnpm test' --timeout-ms 120000 --quiescence-ms 500
+```
+
+By default, commands print the incremental terminal output only. Metadata is hidden unless you request JSON.
+
+```bash
+termdeck run main 'echo ok' --json
+```
+
+Use `--raw` when a command path needs the raw response fallback instead of the default display mode:
+
+```bash
+termdeck run main 'echo ok' --raw
 ```
 
 Remove ANSI escape sequences from the returned output:

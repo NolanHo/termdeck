@@ -29,10 +29,20 @@ function request(req: RequestInput): Promise<Response> {
   });
 }
 
-function printResponse(res: Response): void {
+function printResponse(res: Response, mode: 'default' | 'raw' | 'json' = 'default'): void {
   if (!res.ok) {
     console.error(res.error ?? 'request failed');
     process.exitCode = 1;
+    return;
+  }
+  if (mode === 'json') {
+    process.stdout.write(`${JSON.stringify(res, null, 2)}\n`);
+    return;
+  }
+  if (mode === 'raw') {
+    if (res.output) process.stdout.write(res.output);
+    else if (res.screen) process.stdout.write(`${res.screen}\n`);
+    else process.stdout.write(`${JSON.stringify(res, null, 2)}\n`);
     return;
   }
   if (res.output) process.stdout.write(res.output);
@@ -99,8 +109,10 @@ program.command('run')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
   .option('--strip-ansi')
+  .option('--raw')
+  .option('--json')
   .action(async (session, command, opts) => {
-    printResponse(await request({ op: 'run', session, command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
+    printResponse(await request({ op: 'run', session, command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
   });
 
 program.command('send')
@@ -109,8 +121,10 @@ program.command('send')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
   .option('--strip-ansi')
+  .option('--raw')
+  .option('--json')
   .action(async (session, data, opts) => {
-    printResponse(await request({ op: 'send', session, data, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
+    printResponse(await request({ op: 'send', session, data, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
   });
 
 program.command('ctrl')
@@ -119,8 +133,10 @@ program.command('ctrl')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
   .option('--strip-ansi')
+  .option('--raw')
+  .option('--json')
   .action(async (session, key, opts) => {
-    printResponse(await request({ op: 'ctrl', session, key, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
+    printResponse(await request({ op: 'ctrl', session, key, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
   });
 
 program.command('poll')
@@ -128,8 +144,10 @@ program.command('poll')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
   .option('--strip-ansi')
+  .option('--raw')
+  .option('--json')
   .action(async (session, opts) => {
-    printResponse(await request({ op: 'poll', session, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }));
+    printResponse(await request({ op: 'poll', session, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default');
   });
 
 program.command('screen')
@@ -154,7 +172,9 @@ program.command('expect')
   .argument('<pattern>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--strip-ansi')
-  .action(async (session, pattern, opts) => printResponse(await request({ op: 'expect', session, pattern, timeoutMs: opts.timeoutMs, stripAnsi: opts.stripAnsi })));
+  .option('--raw')
+  .option('--json')
+  .action(async (session, pattern, opts) => printResponse(await request({ op: 'expect', session, pattern, timeoutMs: opts.timeoutMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default'));
 
 program.command('password')
   .argument('<session>')
@@ -210,7 +230,9 @@ program.command('expect-prompt')
   .argument('<session>')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--strip-ansi')
-  .action(async (session, opts) => printResponse(await request({ op: 'expectPrompt', session, timeoutMs: opts.timeoutMs, stripAnsi: opts.stripAnsi })));
+  .option('--raw')
+  .option('--json')
+  .action(async (session, opts) => printResponse(await request({ op: 'expectPrompt', session, timeoutMs: opts.timeoutMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default'));
 
 program.command('signal')
   .argument('<session>')
@@ -218,7 +240,9 @@ program.command('signal')
   .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
   .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
   .option('--strip-ansi')
-  .action(async (session, signal, opts) => printResponse(await request({ op: 'signal', session, signal, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi })));
+  .option('--raw')
+  .option('--json')
+  .action(async (session, signal, opts) => printResponse(await request({ op: 'signal', session, signal, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi: opts.stripAnsi }), opts.json ? 'json' : opts.raw ? 'raw' : 'default'));
 
 program.command('kill')
   .argument('<session>')

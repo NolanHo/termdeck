@@ -140,7 +140,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       case 'new': {
         const s = manager.create(req);
         const state = s.status();
-        return { id: req.id, ok: true, status: state.status, prompt: state.prompt, screen: s.screen(), lastSeq: s.info().lastSeq };
+        return { id: req.id, ok: true, status: state.status, prompt: state.prompt, lastSeq: s.info().lastSeq };
       }
       case 'run': {
         const r = await manager.get(req.session).run(req.command, req.timeoutMs, req.quiescenceMs);
