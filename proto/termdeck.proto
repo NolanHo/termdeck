@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package termdeck.v1;
+
+message Envelope {
+  uint64 id = 1;
+  uint64 seq = 2;
+
+  oneof body {
+    Request request = 10;
+    Response response = 11;
+    Event event = 12;
+  }
+}
+
+message Request {
+  string session = 1;
+
+  oneof op {
+    NewSession new_session = 10;
+    Run run = 11;
+    Send send = 12;
+    Control control = 13;
+    Poll poll = 14;
+    Screen screen = 15;
+    Scrollback scrollback = 16;
+    ListSessions list_sessions = 17;
+    Kill kill = 18;
+    Subscribe subscribe = 19;
+  }
+}
+
+message Response {
+  bool ok = 1;
+  string error = 2;
+  string status = 3;
+  string output = 4;
+  string screen = 5;
+  bool timed_out = 6;
+  repeated SessionInfo sessions = 7;
+  uint64 last_seq = 8;
+}
+
+message Event {
+  string session = 1;
+  uint64 seq = 2;
+  int64 ts_ms = 3;
+
+  oneof kind {
+    bytes output = 10;
+    bytes input = 11;
+    Resize resize = 12;
+    State state = 13;
+    Exit exit = 14;
+  }
+}
+
+message NewSession {
+  string cwd = 1;
+  string shell = 2;
+  uint32 rows = 3;
+  uint32 cols = 4;
+  string prompt_regex = 5;
+}
+
+message Run {
+  string command = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+}
+
+message Send {
+  bytes data = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+}
+
+message Control {
+  string key = 1;
+  uint32 timeout_ms = 2;
+  uint32 quiescence_ms = 3;
+}
+
+message Poll {
+  uint32 timeout_ms = 1;
+  uint32 quiescence_ms = 2;
+}
+
+message Screen {}
+
+message Scrollback {
+  uint32 lines = 1;
+}
+
+message ListSessions {}
+
+message Kill {}
+
+message Subscribe {
+  uint64 after_seq = 1;
+}
+
+message Resize {
+  uint32 rows = 1;
+  uint32 cols = 2;
+}
+
+message State {
+  string status = 1;
+  string reason = 2;
+}
+
+message Exit {
+  int32 code = 1;
+  string signal = 2;
+}
+
+message SessionInfo {
+  string id = 1;
+  string cwd = 2;
+  uint32 rows = 3;
+  uint32 cols = 4;
+  string status = 5;
+  uint64 last_seq = 6;
+}

@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { detectState } from '../src/state.js';
+
+test('detects password prompt from recent screen lines', () => {
+  assert.equal(detectState('ssh host\nPassword:').status, 'password');
+});
+
+test('detects confirmation prompt from recent screen lines', () => {
+  assert.equal(detectState('continue? [y/N]').status, 'confirm');
+});
+
+test('detects ready prompt using custom regex', () => {
+  assert.deepEqual(detectState('repo main >', '.*>\\s*$'), {
+    status: 'ready',
+    reason: 'custom prompt regex',
+  });
+});
+
+test('falls back to running when no prompt matches', () => {
+  assert.equal(detectState('building\nstep 1').status, 'running');
+});
