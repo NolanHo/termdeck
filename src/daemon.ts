@@ -170,10 +170,11 @@ export function main(): void {
 
   const server = createServer((socket: Socket) => {
     const reader = new FrameReader(socket);
-    reader.on('frame', async (frame) => {
+    reader.on('frame', (frame) => {
       if (frame.type !== 'request') return;
-      const response = await handle(frame.payload, socket);
-      writeFrame(socket, { type: 'response', payload: response });
+      void handle(frame.payload, socket).then((response) => {
+        writeFrame(socket, { type: 'response', payload: response });
+      });
     });
   });
 
