@@ -39,6 +39,7 @@ function printResponse(res: Response): void {
   else if (res.screen) process.stdout.write(`${res.screen}\n`);
   else if (res.transcript) process.stdout.write(`${res.transcript}\n`);
   else if (res.metadata) process.stdout.write(`${JSON.stringify(res.metadata, null, 2)}\n`);
+  else if (res.history) process.stdout.write(`${JSON.stringify(res.history, null, 2)}\n`);
   else if (res.matched !== undefined) console.log(res.matched ? 'matched' : 'not matched');
   else if (res.sessions) {
     for (const s of res.sessions) console.log(`${s.id}\t${s.status}\t${s.cwd}`);
@@ -170,6 +171,13 @@ program.command('resize')
 program.command('metadata')
   .argument('<session>')
   .action(async (session) => printResponse(await request({ op: 'metadata', session })));
+
+program.command('history')
+  .action(async () => printResponse(await request({ op: 'history' })));
+
+program.command('inspect')
+  .argument('<session>')
+  .action(async (session) => printResponse(await request({ op: 'inspect', session })));
 
 program.command('clear-scrollback')
   .argument('<session>')

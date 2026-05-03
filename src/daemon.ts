@@ -1,18 +1,19 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { createServer, Socket, type Server as NetServer } from 'node:net';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { Duplex } from 'node:stream';
 import { FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
-import { rootDir, socketPath } from './paths.js';
+import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { TermSession } from './session.js';
 import { webAppJs, webHtml } from './web.js';
 
 const require = createRequire(import.meta.url);
 const xtermJsPath = require.resolve('@xterm/xterm');
 const xtermCssPath = require.resolve('@xterm/xterm/css/xterm.css');
+const xtermFitPath = require.resolve('@xterm/addon-fit');
 
 type Subscriber = { socket: Socket; session: string };
 
@@ -93,6 +94,25 @@ function result(id: number, r: { status: import('./protocol.js').Status; output:
   return { id, ok: true, status: r.status, output: r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars };
 }
 
+function history(): Array<Record<string, unknown>> {
+  if (!existsSync(sessionsDir)) return [];
+  return readdirSync(sessionsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .flatMap((d) => {
+      try {
+        return [JSON.parse(readFileSync(join(sessionsDir, d.name, 'session.json'), 'utf8')) as Record<string, unknown>];
+      } catch {
+        return [];
+      }
+    });
+}
+
+function inspectSession(id: string): Record<string, unknown> {
+  const file = join(sessionDir(id), 'session.json');
+  if (!existsSync(file)) throw new Error(`unknown session history: ${id}`);
+  return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+}
+
 async function handle(req: Request, socket?: Socket): Promise<Response> {
   try {
     switch (req.op) {
@@ -169,6 +189,10 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         const r = await manager.get(req.session).signal(req.signal, req.timeoutMs, req.quiescenceMs);
         return result(req.id, r);
       }
+      case 'history':
+        return { id: req.id, ok: true, history: history() };
+      case 'inspect':
+        return { id: req.id, ok: true, metadata: manager.list()?.some((s) => s.id === req.session) ? manager.get(req.session).metadata() : inspectSession(req.session) };
       case 'subscribe': {
         if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };
         manager.subscribe(socket, req.session, req.afterSeq ?? 0);
@@ -246,6 +270,7 @@ function startWebServer(): HttpServer {
       if (url.pathname === '/app.js') return send(res, 200, 'text/javascript; charset=utf-8', webAppJs);
       if (url.pathname === '/xterm.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermJsPath));
       if (url.pathname === '/xterm.css') return send(res, 200, 'text/css; charset=utf-8', readFileSync(xtermCssPath));
+      if (url.pathname === '/xterm-addon-fit.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermFitPath));
       if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
       const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
       if (screenMatch) {
@@ -286,10 +311,12 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
   }
   const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${accept}`, '', ''].join('\r\n'));
+  const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0);
   const s = manager.get(session);
   const onEvent = (event: Event) => {
     if (event.session === session) socket.write(wsText(JSON.stringify(event)));
   };
+  for (const event of s.eventsAfter(afterSeq)) socket.write(wsText(JSON.stringify(event)));
   s.on('event', onEvent);
   socket.on('close', () => s.off('event', onEvent));
 }

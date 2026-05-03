@@ -36,6 +36,8 @@ message Request {
     ClearScrollback clear_scrollback = 26;
     ExpectPrompt expect_prompt = 27;
     Signal signal = 28;
+    History history = 29;
+    Inspect inspect = 30;
   }
 }
 
@@ -54,6 +56,7 @@ message Response {
   bool output_truncated = 12;
   uint64 dropped_chars = 13;
   string metadata_json = 14;
+  string history_json = 15;
 }
 
 message Event {
@@ -133,6 +136,10 @@ message Password {
 message Transcript {}
 
 message Metadata {}
+
+message History {}
+
+message Inspect {}
 
 message ClearScrollback {}
 

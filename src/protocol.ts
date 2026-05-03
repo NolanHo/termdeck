@@ -11,6 +11,8 @@ import {
   EnvelopeSchema,
   EventSchema,
   ExitSchema,
+  HistorySchema,
+  InspectSchema,
   KillSchema,
   ListSessionsSchema,
   MetadataSchema,
@@ -57,7 +59,9 @@ export type Request =
   | { id: number; op: 'metadata'; session: string }
   | { id: number; op: 'clearScrollback'; session: string }
   | { id: number; op: 'expectPrompt'; session: string; timeoutMs?: number }
-  | { id: number; op: 'signal'; session: string; signal: string; timeoutMs?: number; quiescenceMs?: number };
+  | { id: number; op: 'signal'; session: string; signal: string; timeoutMs?: number; quiescenceMs?: number }
+  | { id: number; op: 'history' }
+  | { id: number; op: 'inspect'; session: string };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -77,6 +81,7 @@ export type Response = {
   outputTruncated?: boolean;
   droppedChars?: number;
   metadata?: Record<string, unknown>;
+  history?: Array<Record<string, unknown>>;
 };
 
 export type Event =
@@ -191,6 +196,10 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { session, op: { case: 'expectPrompt', value: create(ExpectPromptSchema, { timeoutMs: req.timeoutMs ?? 0 }) } });
     case 'signal':
       return create(RequestSchema, { session, op: { case: 'signal', value: create(SignalSchema, { signal: req.signal, timeoutMs: req.timeoutMs ?? 0, quiescenceMs: req.quiescenceMs ?? 0 }) } });
+    case 'history':
+      return create(RequestSchema, { op: { case: 'history', value: create(HistorySchema) } });
+    case 'inspect':
+      return create(RequestSchema, { session, op: { case: 'inspect', value: create(InspectSchema) } });
   }
 }
 
@@ -235,6 +244,10 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return withDefined({ id, op: 'expectPrompt', session, timeoutMs: req.op.value.timeoutMs || undefined }) as Request;
     case 'signal':
       return withDefined({ id, op: 'signal', session, signal: req.op.value.signal, timeoutMs: req.op.value.timeoutMs || undefined, quiescenceMs: req.op.value.quiescenceMs || undefined }) as Request;
+    case 'history':
+      return { id, op: 'history' };
+    case 'inspect':
+      return { id, op: 'inspect', session };
     default:
       throw new Error('empty request op');
   }
@@ -259,6 +272,7 @@ function toPbResponse(res: Response): PbResponse {
     outputTruncated: res.outputTruncated ?? false,
     droppedChars: BigInt(res.droppedChars ?? 0),
     metadataJson: res.metadata ? JSON.stringify(res.metadata) : '',
+    historyJson: res.history ? JSON.stringify(res.history) : '',
     sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
@@ -275,6 +289,7 @@ function fromPbResponse(id: number, res: PbResponse): Response {
   if (res.outputTruncated) out.outputTruncated = res.outputTruncated;
   if (res.droppedChars) out.droppedChars = Number(res.droppedChars);
   if (res.metadataJson) out.metadata = JSON.parse(res.metadataJson) as Record<string, unknown>;
+  if (res.historyJson) out.history = JSON.parse(res.historyJson) as Array<Record<string, unknown>>;
   return out;
 }
 

@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file termdeck/v1/termdeck.proto.
  */
 export const file_termdeck_v1_termdeck: GenFile = /*@__PURE__*/
-  fileDesc("Chp0ZXJtZGVjay92MS90ZXJtZGVjay5wcm90bxILdGVybWRlY2sudjEipAEKCEVudmVsb3BlEgoKAmlkGAEgASgEEgsKA3NlcRgCIAEoBBInCgdyZXF1ZXN0GAogASgLMhQudGVybWRlY2sudjEuUmVxdWVzdEgAEikKCHJlc3BvbnNlGAsgASgLMhUudGVybWRlY2sudjEuUmVzcG9uc2VIABIjCgVldmVudBgMIAEoCzISLnRlcm1kZWNrLnYxLkV2ZW50SABCBgoEYm9keSLPBgoHUmVxdWVzdBIPCgdzZXNzaW9uGAEgASgJEi4KC25ld19zZXNzaW9uGAogASgLMhcudGVybWRlY2sudjEuTmV3U2Vzc2lvbkgAEh8KA3J1bhgLIAEoCzIQLnRlcm1kZWNrLnYxLlJ1bkgAEiEKBHNlbmQYDCABKAsyES50ZXJtZGVjay52MS5TZW5kSAASJwoHY29udHJvbBgNIAEoCzIULnRlcm1kZWNrLnYxLkNvbnRyb2xIABIhCgRwb2xsGA4gASgLMhEudGVybWRlY2sudjEuUG9sbEgAEiUKBnNjcmVlbhgPIAEoCzITLnRlcm1kZWNrLnYxLlNjcmVlbkgAEi0KCnNjcm9sbGJhY2sYECABKAsyFy50ZXJtZGVjay52MS5TY3JvbGxiYWNrSAASMgoNbGlzdF9zZXNzaW9ucxgRIAEoCzIZLnRlcm1kZWNrLnYxLkxpc3RTZXNzaW9uc0gAEiEKBGtpbGwYEiABKAsyES50ZXJtZGVjay52MS5LaWxsSAASKwoJc3Vic2NyaWJlGBMgASgLMhYudGVybWRlY2sudjEuU3Vic2NyaWJlSAASKwoJY29uZmlndXJlGBQgASgLMhYudGVybWRlY2sudjEuQ29uZmlndXJlSAASJQoGZXhwZWN0GBUgASgLMhMudGVybWRlY2sudjEuRXhwZWN0SAASKQoIcGFzc3dvcmQYFiABKAsyFS50ZXJtZGVjay52MS5QYXNzd29yZEgAEi0KCnRyYW5zY3JpcHQYFyABKAsyFy50ZXJtZGVjay52MS5UcmFuc2NyaXB0SAASJQoGcmVzaXplGBggASgLMhMudGVybWRlY2sudjEuUmVzaXplSAASKQoIbWV0YWRhdGEYGSABKAsyFS50ZXJtZGVjay52MS5NZXRhZGF0YUgAEjgKEGNsZWFyX3Njcm9sbGJhY2sYGiABKAsyHC50ZXJtZGVjay52MS5DbGVhclNjcm9sbGJhY2tIABIyCg1leHBlY3RfcHJvbXB0GBsgASgLMhkudGVybWRlY2sudjEuRXhwZWN0UHJvbXB0SAASJQoGc2lnbmFsGBwgASgLMhMudGVybWRlY2sudjEuU2lnbmFsSABCBAoCb3AiowIKCFJlc3BvbnNlEgoKAm9rGAEgASgIEg0KBWVycm9yGAIgASgJEg4KBnN0YXR1cxgDIAEoCRIOCgZvdXRwdXQYBCABKAkSDgoGc2NyZWVuGAUgASgJEhEKCXRpbWVkX291dBgGIAEoCBIqCghzZXNzaW9ucxgHIAMoCzIYLnRlcm1kZWNrLnYxLlNlc3Npb25JbmZvEhAKCGxhc3Rfc2VxGAggASgEEg8KB21hdGNoZWQYCSABKAgSEgoKdHJhbnNjcmlwdBgKIAEoCRIOCgZwcm9tcHQYCyABKAkSGAoQb3V0cHV0X3RydW5jYXRlZBgMIAEoCBIVCg1kcm9wcGVkX2NoYXJzGA0gASgEEhUKDW1ldGFkYXRhX2pzb24YDiABKAkizgEKBUV2ZW50Eg8KB3Nlc3Npb24YASABKAkSCwoDc2VxGAIgASgEEg0KBXRzX21zGAMgASgDEhAKBm91dHB1dBgKIAEoDEgAEg8KBWlucHV0GAsgASgMSAASJQoGcmVzaXplGAwgASgLMhMudGVybWRlY2sudjEuUmVzaXplSAASIwoFc3RhdGUYDSABKAsyEi50ZXJtZGVjay52MS5TdGF0ZUgAEiEKBGV4aXQYDiABKAsyES50ZXJtZGVjay52MS5FeGl0SABCBgoEa2luZCJaCgpOZXdTZXNzaW9uEgsKA2N3ZBgBIAEoCRINCgVzaGVsbBgCIAEoCRIMCgRyb3dzGAMgASgNEgwKBGNvbHMYBCABKA0SFAoMcHJvbXB0X3JlZ2V4GAUgASgJIkEKA1J1bhIPCgdjb21tYW5kGAEgASgJEhIKCnRpbWVvdXRfbXMYAiABKA0SFQoNcXVpZXNjZW5jZV9tcxgDIAEoDSI/CgRTZW5kEgwKBGRhdGEYASABKAwSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIkEKB0NvbnRyb2wSCwoDa2V5GAEgASgJEhIKCnRpbWVvdXRfbXMYAiABKA0SFQoNcXVpZXNjZW5jZV9tcxgDIAEoDSIxCgRQb2xsEhIKCnRpbWVvdXRfbXMYASABKA0SFQoNcXVpZXNjZW5jZV9tcxgCIAEoDSIICgZTY3JlZW4iGwoKU2Nyb2xsYmFjaxINCgVsaW5lcxgBIAEoDSIOCgxMaXN0U2Vzc2lvbnMiBgoES2lsbCIeCglTdWJzY3JpYmUSEQoJYWZ0ZXJfc2VxGAEgASgEIiEKCUNvbmZpZ3VyZRIUCgxwcm9tcHRfcmVnZXgYASABKAkiLQoGRXhwZWN0Eg8KB3BhdHRlcm4YASABKAkSEgoKdGltZW91dF9tcxgCIAEoDSJFCghQYXNzd29yZBIOCgZzZWNyZXQYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIgwKClRyYW5zY3JpcHQiCgoITWV0YWRhdGEiEQoPQ2xlYXJTY3JvbGxiYWNrIiIKDEV4cGVjdFByb21wdBISCgp0aW1lb3V0X21zGAEgASgNIkMKBlNpZ25hbBIOCgZzaWduYWwYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIiQKBlJlc2l6ZRIMCgRyb3dzGAEgASgNEgwKBGNvbHMYAiABKA0iJwoFU3RhdGUSDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIkCgRFeGl0EgwKBGNvZGUYASABKAUSDgoGc2lnbmFsGAIgASgJInoKC1Nlc3Npb25JbmZvEgoKAmlkGAEgASgJEgsKA2N3ZBgCIAEoCRIMCgRyb3dzGAMgASgNEgwKBGNvbHMYBCABKA0SDgoGc3RhdHVzGAUgASgJEhAKCGxhc3Rfc2VxGAYgASgEEhQKDHByb21wdF9yZWdleBgHIAEoCWIGcHJvdG8z");
+  fileDesc("Chp0ZXJtZGVjay92MS90ZXJtZGVjay5wcm90bxILdGVybWRlY2sudjEipAEKCEVudmVsb3BlEgoKAmlkGAEgASgEEgsKA3NlcRgCIAEoBBInCgdyZXF1ZXN0GAogASgLMhQudGVybWRlY2sudjEuUmVxdWVzdEgAEikKCHJlc3BvbnNlGAsgASgLMhUudGVybWRlY2sudjEuUmVzcG9uc2VIABIjCgVldmVudBgMIAEoCzISLnRlcm1kZWNrLnYxLkV2ZW50SABCBgoEYm9keSKhBwoHUmVxdWVzdBIPCgdzZXNzaW9uGAEgASgJEi4KC25ld19zZXNzaW9uGAogASgLMhcudGVybWRlY2sudjEuTmV3U2Vzc2lvbkgAEh8KA3J1bhgLIAEoCzIQLnRlcm1kZWNrLnYxLlJ1bkgAEiEKBHNlbmQYDCABKAsyES50ZXJtZGVjay52MS5TZW5kSAASJwoHY29udHJvbBgNIAEoCzIULnRlcm1kZWNrLnYxLkNvbnRyb2xIABIhCgRwb2xsGA4gASgLMhEudGVybWRlY2sudjEuUG9sbEgAEiUKBnNjcmVlbhgPIAEoCzITLnRlcm1kZWNrLnYxLlNjcmVlbkgAEi0KCnNjcm9sbGJhY2sYECABKAsyFy50ZXJtZGVjay52MS5TY3JvbGxiYWNrSAASMgoNbGlzdF9zZXNzaW9ucxgRIAEoCzIZLnRlcm1kZWNrLnYxLkxpc3RTZXNzaW9uc0gAEiEKBGtpbGwYEiABKAsyES50ZXJtZGVjay52MS5LaWxsSAASKwoJc3Vic2NyaWJlGBMgASgLMhYudGVybWRlY2sudjEuU3Vic2NyaWJlSAASKwoJY29uZmlndXJlGBQgASgLMhYudGVybWRlY2sudjEuQ29uZmlndXJlSAASJQoGZXhwZWN0GBUgASgLMhMudGVybWRlY2sudjEuRXhwZWN0SAASKQoIcGFzc3dvcmQYFiABKAsyFS50ZXJtZGVjay52MS5QYXNzd29yZEgAEi0KCnRyYW5zY3JpcHQYFyABKAsyFy50ZXJtZGVjay52MS5UcmFuc2NyaXB0SAASJQoGcmVzaXplGBggASgLMhMudGVybWRlY2sudjEuUmVzaXplSAASKQoIbWV0YWRhdGEYGSABKAsyFS50ZXJtZGVjay52MS5NZXRhZGF0YUgAEjgKEGNsZWFyX3Njcm9sbGJhY2sYGiABKAsyHC50ZXJtZGVjay52MS5DbGVhclNjcm9sbGJhY2tIABIyCg1leHBlY3RfcHJvbXB0GBsgASgLMhkudGVybWRlY2sudjEuRXhwZWN0UHJvbXB0SAASJQoGc2lnbmFsGBwgASgLMhMudGVybWRlY2sudjEuU2lnbmFsSAASJwoHaGlzdG9yeRgdIAEoCzIULnRlcm1kZWNrLnYxLkhpc3RvcnlIABInCgdpbnNwZWN0GB4gASgLMhQudGVybWRlY2sudjEuSW5zcGVjdEgAQgQKAm9wIrkCCghSZXNwb25zZRIKCgJvaxgBIAEoCBINCgVlcnJvchgCIAEoCRIOCgZzdGF0dXMYAyABKAkSDgoGb3V0cHV0GAQgASgJEg4KBnNjcmVlbhgFIAEoCRIRCgl0aW1lZF9vdXQYBiABKAgSKgoIc2Vzc2lvbnMYByADKAsyGC50ZXJtZGVjay52MS5TZXNzaW9uSW5mbxIQCghsYXN0X3NlcRgIIAEoBBIPCgdtYXRjaGVkGAkgASgIEhIKCnRyYW5zY3JpcHQYCiABKAkSDgoGcHJvbXB0GAsgASgJEhgKEG91dHB1dF90cnVuY2F0ZWQYDCABKAgSFQoNZHJvcHBlZF9jaGFycxgNIAEoBBIVCg1tZXRhZGF0YV9qc29uGA4gASgJEhQKDGhpc3RvcnlfanNvbhgPIAEoCSLOAQoFRXZlbnQSDwoHc2Vzc2lvbhgBIAEoCRILCgNzZXEYAiABKAQSDQoFdHNfbXMYAyABKAMSEAoGb3V0cHV0GAogASgMSAASDwoFaW5wdXQYCyABKAxIABIlCgZyZXNpemUYDCABKAsyEy50ZXJtZGVjay52MS5SZXNpemVIABIjCgVzdGF0ZRgNIAEoCzISLnRlcm1kZWNrLnYxLlN0YXRlSAASIQoEZXhpdBgOIAEoCzIRLnRlcm1kZWNrLnYxLkV4aXRIAEIGCgRraW5kIloKCk5ld1Nlc3Npb24SCwoDY3dkGAEgASgJEg0KBXNoZWxsGAIgASgJEgwKBHJvd3MYAyABKA0SDAoEY29scxgEIAEoDRIUCgxwcm9tcHRfcmVnZXgYBSABKAkiQQoDUnVuEg8KB2NvbW1hbmQYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIj8KBFNlbmQSDAoEZGF0YRgBIAEoDBISCgp0aW1lb3V0X21zGAIgASgNEhUKDXF1aWVzY2VuY2VfbXMYAyABKA0iQQoHQ29udHJvbBILCgNrZXkYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIjEKBFBvbGwSEgoKdGltZW91dF9tcxgBIAEoDRIVCg1xdWllc2NlbmNlX21zGAIgASgNIggKBlNjcmVlbiIbCgpTY3JvbGxiYWNrEg0KBWxpbmVzGAEgASgNIg4KDExpc3RTZXNzaW9ucyIGCgRLaWxsIh4KCVN1YnNjcmliZRIRCglhZnRlcl9zZXEYASABKAQiIQoJQ29uZmlndXJlEhQKDHByb21wdF9yZWdleBgBIAEoCSItCgZFeHBlY3QSDwoHcGF0dGVybhgBIAEoCRISCgp0aW1lb3V0X21zGAIgASgNIkUKCFBhc3N3b3JkEg4KBnNlY3JldBgBIAEoCRISCgp0aW1lb3V0X21zGAIgASgNEhUKDXF1aWVzY2VuY2VfbXMYAyABKA0iDAoKVHJhbnNjcmlwdCIKCghNZXRhZGF0YSIJCgdIaXN0b3J5IgkKB0luc3BlY3QiEQoPQ2xlYXJTY3JvbGxiYWNrIiIKDEV4cGVjdFByb21wdBISCgp0aW1lb3V0X21zGAEgASgNIkMKBlNpZ25hbBIOCgZzaWduYWwYASABKAkSEgoKdGltZW91dF9tcxgCIAEoDRIVCg1xdWllc2NlbmNlX21zGAMgASgNIiQKBlJlc2l6ZRIMCgRyb3dzGAEgASgNEgwKBGNvbHMYAiABKA0iJwoFU3RhdGUSDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIkCgRFeGl0EgwKBGNvZGUYASABKAUSDgoGc2lnbmFsGAIgASgJInoKC1Nlc3Npb25JbmZvEgoKAmlkGAEgASgJEgsKA2N3ZBgCIAEoCRIMCgRyb3dzGAMgASgNEgwKBGNvbHMYBCABKA0SDgoGc3RhdHVzGAUgASgJEhAKCGxhc3Rfc2VxGAYgASgEEhQKDHByb21wdF9yZWdleBgHIAEoCWIGcHJvdG8z");
 
 /**
  * @generated from message termdeck.v1.Envelope
@@ -183,6 +183,18 @@ export type Request = Message<"termdeck.v1.Request"> & {
      */
     value: Signal;
     case: "signal";
+  } | {
+    /**
+     * @generated from field: termdeck.v1.History history = 29;
+     */
+    value: History;
+    case: "history";
+  } | {
+    /**
+     * @generated from field: termdeck.v1.Inspect inspect = 30;
+     */
+    value: Inspect;
+    case: "inspect";
   } | { case: undefined; value?: undefined };
 };
 
@@ -266,6 +278,11 @@ export type Response = Message<"termdeck.v1.Response"> & {
    * @generated from field: string metadata_json = 14;
    */
   metadataJson: string;
+
+  /**
+   * @generated from field: string history_json = 15;
+   */
+  historyJson: string;
 };
 
 /**
@@ -643,6 +660,32 @@ export const MetadataSchema: GenMessage<Metadata> = /*@__PURE__*/
   messageDesc(file_termdeck_v1_termdeck, 18);
 
 /**
+ * @generated from message termdeck.v1.History
+ */
+export type History = Message<"termdeck.v1.History"> & {
+};
+
+/**
+ * Describes the message termdeck.v1.History.
+ * Use `create(HistorySchema)` to create a new message.
+ */
+export const HistorySchema: GenMessage<History> = /*@__PURE__*/
+  messageDesc(file_termdeck_v1_termdeck, 19);
+
+/**
+ * @generated from message termdeck.v1.Inspect
+ */
+export type Inspect = Message<"termdeck.v1.Inspect"> & {
+};
+
+/**
+ * Describes the message termdeck.v1.Inspect.
+ * Use `create(InspectSchema)` to create a new message.
+ */
+export const InspectSchema: GenMessage<Inspect> = /*@__PURE__*/
+  messageDesc(file_termdeck_v1_termdeck, 20);
+
+/**
  * @generated from message termdeck.v1.ClearScrollback
  */
 export type ClearScrollback = Message<"termdeck.v1.ClearScrollback"> & {
@@ -653,7 +696,7 @@ export type ClearScrollback = Message<"termdeck.v1.ClearScrollback"> & {
  * Use `create(ClearScrollbackSchema)` to create a new message.
  */
 export const ClearScrollbackSchema: GenMessage<ClearScrollback> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 19);
+  messageDesc(file_termdeck_v1_termdeck, 21);
 
 /**
  * @generated from message termdeck.v1.ExpectPrompt
@@ -670,7 +713,7 @@ export type ExpectPrompt = Message<"termdeck.v1.ExpectPrompt"> & {
  * Use `create(ExpectPromptSchema)` to create a new message.
  */
 export const ExpectPromptSchema: GenMessage<ExpectPrompt> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 20);
+  messageDesc(file_termdeck_v1_termdeck, 22);
 
 /**
  * @generated from message termdeck.v1.Signal
@@ -697,7 +740,7 @@ export type Signal = Message<"termdeck.v1.Signal"> & {
  * Use `create(SignalSchema)` to create a new message.
  */
 export const SignalSchema: GenMessage<Signal> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 21);
+  messageDesc(file_termdeck_v1_termdeck, 23);
 
 /**
  * @generated from message termdeck.v1.Resize
@@ -719,7 +762,7 @@ export type Resize = Message<"termdeck.v1.Resize"> & {
  * Use `create(ResizeSchema)` to create a new message.
  */
 export const ResizeSchema: GenMessage<Resize> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 22);
+  messageDesc(file_termdeck_v1_termdeck, 24);
 
 /**
  * @generated from message termdeck.v1.State
@@ -741,7 +784,7 @@ export type State = Message<"termdeck.v1.State"> & {
  * Use `create(StateSchema)` to create a new message.
  */
 export const StateSchema: GenMessage<State> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 23);
+  messageDesc(file_termdeck_v1_termdeck, 25);
 
 /**
  * @generated from message termdeck.v1.Exit
@@ -763,7 +806,7 @@ export type Exit = Message<"termdeck.v1.Exit"> & {
  * Use `create(ExitSchema)` to create a new message.
  */
 export const ExitSchema: GenMessage<Exit> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 24);
+  messageDesc(file_termdeck_v1_termdeck, 26);
 
 /**
  * @generated from message termdeck.v1.SessionInfo
@@ -810,5 +853,5 @@ export type SessionInfo = Message<"termdeck.v1.SessionInfo"> & {
  * Use `create(SessionInfoSchema)` to create a new message.
  */
 export const SessionInfoSchema: GenMessage<SessionInfo> = /*@__PURE__*/
-  messageDesc(file_termdeck_v1_termdeck, 25);
+  messageDesc(file_termdeck_v1_termdeck, 27);
 

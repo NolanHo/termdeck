@@ -25,13 +25,20 @@ export const webHtml = `<!doctype html>
 </html>`;
 
 export const webAppJs = `import { Terminal } from '/xterm.js';
+import { FitAddon } from '/xterm-addon-fit.js';
 
 const select = document.querySelector('#sessions');
 const status = document.querySelector('#status');
+const fit = new FitAddon();
 const term = new Terminal({ convertEol: true, cursorBlink: false, disableStdin: true });
+term.loadAddon(fit);
 term.open(document.querySelector('#terminal'));
+fit.fit();
 
 let ws;
+let currentSession;
+let lastSeq = 0;
+let reconnectTimer;
 
 async function refreshSessions() {
   const res = await fetch('/api/sessions');
@@ -48,20 +55,33 @@ async function refreshSessions() {
 
 async function openSession(id) {
   if (ws) ws.close();
+  currentSession = id;
+  lastSeq = 0;
   term.clear();
   const snap = await fetch('/api/sessions/' + encodeURIComponent(id) + '/screen').then((r) => r.json());
+  lastSeq = snap.lastSeq || 0;
   if (snap.screen) term.write(snap.screen.replace(/\n/g, '\r\n'));
-  ws = new WebSocket('/ws?session=' + encodeURIComponent(id));
+  connectEvents(id);
+}
+
+function connectEvents(id) {
+  clearTimeout(reconnectTimer);
+  ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => { status.textContent = 'observing ' + id; };
   ws.onmessage = (msg) => {
     const event = JSON.parse(msg.data);
+    if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
     if (event.kind === 'output') term.write(event.data);
     if (event.kind === 'state') status.textContent = id + ' ' + event.status;
     if (event.kind === 'exit') status.textContent = id + ' exited';
   };
-  ws.onclose = () => { status.textContent = 'disconnected'; };
+  ws.onclose = () => {
+    status.textContent = 'disconnected';
+    if (currentSession === id) reconnectTimer = setTimeout(() => connectEvents(id), 1000);
+  };
 }
 
+window.addEventListener('resize', () => fit.fit());
 select.addEventListener('change', () => openSession(select.value));
 refreshSessions();`;
