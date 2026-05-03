@@ -34,6 +34,14 @@ test('detects pdb prompt as repl', () => {
   });
 });
 
+test('detects editor markers', () => {
+  assert.deepEqual(detectState('file.txt\n-- INSERT --'), {
+    status: 'editor',
+    reason: 'editor marker',
+    prompt: 'editor',
+  });
+});
+
 test('falls back to running when no prompt matches', () => {
   assert.equal(detectState('building\nstep 1').status, 'running');
 });

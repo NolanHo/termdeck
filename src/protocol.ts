@@ -41,7 +41,7 @@ import {
 } from './gen/termdeck/v1/termdeck_pb.js';
 
 export type Status = 'running' | 'ready' | 'repl' | 'password' | 'confirm' | 'editor' | 'pager' | 'eof' | 'unknown';
-export type PromptKind = 'shell' | 'python' | 'pdb' | 'none' | 'unknown';
+export type PromptKind = 'shell' | 'python' | 'pdb' | 'editor' | 'none' | 'unknown';
 
 export type Request =
   | { id: number; op: 'new'; session: string; cwd: string; shell?: string; rows?: number; cols?: number; promptRegex?: string }

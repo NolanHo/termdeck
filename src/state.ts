@@ -1,11 +1,12 @@
 import type { Status } from './protocol.js';
 
-export type PromptKind = 'shell' | 'python' | 'pdb' | 'none' | 'unknown';
+export type PromptKind = 'shell' | 'python' | 'pdb' | 'editor' | 'none' | 'unknown';
 export type StateResult = { status: Status; reason: string; prompt: PromptKind };
 
 const passwordRx = /(?:password|passphrase).*:\s*$/i;
 const confirmRx = /(?:yes\/no|y\/n|\[[yY]\/[nN]\]|\[[nN]\/[yY]\])\s*$/i;
 const defaultPromptRx = /(?:^|\n).*(?:[$#%]|>)\s*$/;
+const editorRx = /(?:--\s*(?:INSERT|NORMAL|VISUAL|REPLACE)\s*--|\b(?:GNU nano|File Name to Write|Write Out|Read File|Where Is|Save modified buffer)\b|\b(?:emacs|fundamental|text|lisp|python|typescript|javascript)-mode\b)/i;
 
 export function detectState(screen: string, promptRegex?: string, exited = false): StateResult {
   if (exited) return { status: 'eof', reason: 'pty exited', prompt: 'none' };
@@ -18,6 +19,7 @@ export function detectState(screen: string, promptRegex?: string, exited = false
   if (/^>>>\s?$|^\.\.\.\s?$/.test(last)) return { status: 'repl', reason: 'python prompt', prompt: 'python' };
   if (/^\(Pdb\)\s?$/.test(last)) return { status: 'repl', reason: 'pdb prompt', prompt: 'pdb' };
   if (/(:|\(END\))\s?$/.test(last) && /\b(less|more|man)\b|\(END\)/i.test(recent)) return { status: 'pager', reason: 'pager marker', prompt: 'none' };
+  if (editorRx.test(recent)) return { status: 'editor', reason: 'editor marker', prompt: 'editor' };
 
   const rx = promptRegex ? new RegExp(promptRegex) : defaultPromptRx;
   if (rx.test(last)) return { status: 'ready', reason: promptRegex ? 'custom prompt regex' : 'default prompt regex', prompt: 'shell' };
