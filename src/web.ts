@@ -107,7 +107,8 @@ function closeSession() {
 
 function connectEvents(id, replayTargetSeq = 0) {
   clearTimeout(reconnectTimer);
-  ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq);
+  fit.fit();
+  ws = new WebSocket('/ws?session=' + encodeURIComponent(id) + '&afterSeq=' + lastSeq + '&rows=' + term.rows + '&cols=' + term.cols);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => { status.textContent = 'observing ' + id + ' seq=' + lastSeq; };
   ws.onmessage = (msg) => {
@@ -185,7 +186,13 @@ function skip(r, wire) {
   else throw new Error('unsupported protobuf wire type ' + wire);
 }
 
-window.addEventListener('resize', () => fit.fit());
+window.addEventListener('resize', () => {
+  fit.fit();
+  if (currentSession && ws) {
+    ws.close();
+    connectEvents(currentSession);
+  }
+});
 refreshSessions();
 refreshTimer = setInterval(refreshSessions, 3000);
 window.addEventListener('beforeunload', () => clearInterval(refreshTimer));`;

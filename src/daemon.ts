@@ -62,8 +62,9 @@ class SessionManager {
     this.sessions.delete(id);
   }
 
-  subscribe(socket: Socket, session: string, afterSeq: number): void {
+  subscribe(socket: Socket, session: string, afterSeq: number, rows?: number, cols?: number): void {
     const s = this.get(session);
+    if (rows && cols && rows > 0 && cols > 0 && (s.rows !== rows || s.cols !== cols)) s.resize(rows, cols);
     const sub = { socket, session };
     this.subscribers.add(sub);
     socket.on('close', () => this.subscribers.delete(sub));
@@ -233,7 +234,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'subscribe': {
         if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };
-        manager.subscribe(socket, req.session, req.afterSeq ?? 0);
+        manager.subscribe(socket, req.session, req.afterSeq ?? 0, req.rows, req.cols);
         return { id: req.id, ok: true, status: 'ready' };
       }
       default:
@@ -357,7 +358,10 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
   const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${accept}`, '', ''].join('\r\n'));
   const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0);
+  const rows = Number(url.searchParams.get('rows') ?? 0);
+  const cols = Number(url.searchParams.get('cols') ?? 0);
   const s = manager.get(session);
+  if (rows > 0 && cols > 0 && (s.rows !== rows || s.cols !== cols)) s.resize(rows, cols);
   const onEvent = (event: Event) => {
     if (event.session === session) socket.write(wsBinary(encodeEvent(event)));
   };

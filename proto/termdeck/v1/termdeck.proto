@@ -143,6 +143,8 @@ message Kill {}
 
 message Subscribe {
   uint64 after_seq = 1;
+  uint32 rows = 2;
+  uint32 cols = 3;
 }
 
 message Configure {

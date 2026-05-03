@@ -57,7 +57,7 @@ export type Request =
   | { id: number; op: 'scrollback'; session: string; lines?: number }
   | { id: number; op: 'list' }
   | { id: number; op: 'kill'; session: string }
-  | { id: number; op: 'subscribe'; session: string; afterSeq?: number }
+  | { id: number; op: 'subscribe'; session: string; afterSeq?: number; rows?: number; cols?: number }
   | { id: number; op: 'configure'; session: string; promptRegex?: string }
   | { id: number; op: 'expect'; session: string; pattern: string; timeoutMs?: number; stripAnsi?: boolean }
   | { id: number; op: 'password'; session: string; secret: string; timeoutMs?: number; quiescenceMs?: number }
@@ -197,7 +197,7 @@ function toPbRequest(req: Request): PbRequest {
     case 'kill':
       return create(RequestSchema, { session, op: { case: 'kill', value: create(KillSchema) } });
     case 'subscribe':
-      return create(RequestSchema, { session, op: { case: 'subscribe', value: create(SubscribeSchema, { afterSeq: BigInt(req.afterSeq ?? 0) }) } });
+      return create(RequestSchema, { session, op: { case: 'subscribe', value: create(SubscribeSchema, { afterSeq: BigInt(req.afterSeq ?? 0), rows: req.rows ?? 0, cols: req.cols ?? 0 }) } });
     case 'configure':
       return create(RequestSchema, { session, op: { case: 'configure', value: create(ConfigureSchema, { promptRegex: req.promptRegex ?? '' }) } });
     case 'expect':
@@ -255,7 +255,7 @@ function fromPbRequest(id: number, req: PbRequest): Request {
     case 'kill':
       return { id, op: 'kill', session };
     case 'subscribe':
-      return { id, op: 'subscribe', session, afterSeq: Number(req.op.value.afterSeq) };
+      return withDefined({ id, op: 'subscribe', session, afterSeq: Number(req.op.value.afterSeq), rows: req.op.value.rows || undefined, cols: req.op.value.cols || undefined }) as Request;
     case 'configure':
       return withDefined({ id, op: 'configure', session, promptRegex: req.op.value.promptRegex || undefined }) as Request;
     case 'expect':

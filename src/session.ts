@@ -33,7 +33,9 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   delete next.__PYVENV_LAUNCHER__;
   delete next.NPM_CONFIG_PREFIX;
   delete next.npm_config_verify_deps_before_run;
-  next.TERM = next.TERM || 'xterm-256color';
+  next.TERM = 'xterm-256color';
+  delete next.TMUX;
+  delete next.TMUX_PANE;
   return next;
 }
 
@@ -76,8 +78,8 @@ export class TermSession extends EventEmitter {
     super();
     this.id = opts.id;
     this.cwd = opts.cwd;
-    this.rows = opts.rows ?? 30;
-    this.cols = opts.cols ?? 120;
+    this.rows = opts.rows ?? 40;
+    this.cols = opts.cols ?? 160;
     this.promptRegex = opts.promptRegex;
     this.description = opts.description;
 
