@@ -10,15 +10,21 @@ function request(req: RequestInput): Promise<Response> {
   const full = { ...req, id } as Request;
   return new Promise((resolve, reject) => {
     const socket = connect(socketPath);
-    const reader = new FrameReader(socket);
     const cleanup = () => socket.end();
-    socket.on('connect', () => writeFrame(socket, { type: 'request', payload: full }));
-    socket.on('error', reject);
-    reader.on('frame', (frame) => {
-      if (frame.type !== 'response') return;
-      if (frame.payload.id !== id) return;
-      cleanup();
-      resolve(frame.payload);
+    socket.on('connect', () => {
+      const reader = new FrameReader(socket);
+      reader.on('error', reject);
+      reader.on('frame', (frame) => {
+        if (frame.type !== 'response') return;
+        if (frame.payload.id !== id) return;
+        cleanup();
+        resolve(frame.payload);
+      });
+      writeFrame(socket, { type: 'request', payload: full });
+    });
+    socket.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') reject(new Error(`termdeckd is not running at ${socketPath}`));
+      else reject(err);
     });
   });
 }
@@ -164,4 +170,7 @@ program.command('kill')
   .argument('<session>')
   .action(async (session) => printResponse(await request({ op: 'kill', session })));
 
-program.parseAsync();
+program.parseAsync().catch((err) => {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});

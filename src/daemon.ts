@@ -1,8 +1,8 @@
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer as createHttpServer, type IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { createHash } from 'node:crypto';
-import { createServer, type Socket } from 'node:net';
+import { createServer, Socket } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
@@ -17,6 +17,11 @@ const xtermCssPath = require.resolve('@xterm/xterm/css/xterm.css');
 class SessionManager {
   private readonly sessions = new Map<string, TermSession>();
   private readonly subscribers = new Set<Socket>();
+
+  terminateAll(): void {
+    for (const s of this.sessions.values()) s.kill();
+    this.sessions.clear();
+  }
 
   get(id: string): TermSession {
     const s = this.sessions.get(id);
@@ -159,9 +164,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
 export function main(): void {
   mkdirSync(rootDir, { recursive: true, mode: 0o700 });
   mkdirSync(dirname(socketPath), { recursive: true, mode: 0o700 });
-  try {
-    rmSync(socketPath);
-  } catch {}
+  removeStaleSocket();
 
   startWebServer();
 
@@ -178,8 +181,31 @@ export function main(): void {
     console.log(`termdeckd listening on ${socketPath}`);
   });
 
-  process.on('SIGINT', () => process.exit(0));
-  process.on('SIGTERM', () => process.exit(0));
+  const shutdown = () => {
+    manager.terminateAll();
+    server.close();
+    try {
+      rmSync(socketPath);
+    } catch {}
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
+
+function removeStaleSocket(): void {
+  if (!existsSync(socketPath)) return;
+  const probe = new Socket();
+  probe.once('connect', () => {
+    console.error(`termdeckd already running at ${socketPath}`);
+    process.exit(1);
+  });
+  probe.once('error', () => {
+    try {
+      rmSync(socketPath);
+    } catch {}
+  });
+  probe.connect(socketPath);
 }
 
 function startWebServer(): void {
