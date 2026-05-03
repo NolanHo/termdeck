@@ -133,6 +133,12 @@ termdeck paste main --inline 'printf paste-ok' --enter --timeout-ms 5000 --strip
 
 Use `run` for one interactive shell command whose side effects should persist. Use `script` for multiline diagnostics or complex quoting. Use `paste` for REPL/editor/TUI input.
 
+`run` does not rewrite commands. If a command has unmatched quotes or an unfinished heredoc, the shell can enter continuation mode. TermDeck reports that as `prompt: continuation` with reason `shell continuation prompt`; recover with Ctrl-C:
+
+```bash
+termdeck ctrl main c --timeout-ms 3000 --strip-ansi
+```
+
 Common control keys:
 
 ```bash
@@ -166,6 +172,7 @@ password
 confirm
 editor
 pager
+continuation
 eof
 ```
 

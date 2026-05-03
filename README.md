@@ -20,7 +20,7 @@ TermDeck targets agent workflows where the terminal must outlive one CLI invocat
 - Length-prefixed protobuf CLI-to-daemon protocol over Unix socket
 - Server-side terminal buffer via `@xterm/headless`
 - Observe-only web UI with JSON REST control endpoints and binary protobuf WebSocket events
-- Prompt/state classification: running, ready, repl, password, confirm, editor, pager, eof
+- Prompt/state classification: running, ready, repl, password, confirm, editor, pager, continuation, eof
 - Session artifacts: transcript, events, commands, interactions, metadata, state
 - Historical inspection: history, inspect, log, events, replay
 - Password input path that avoids command logging
@@ -104,6 +104,8 @@ Terminal I/O:
 
 ```bash
 termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
+termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
+termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
 termdeck send <session> <data> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
 termdeck ctrl <session> <key> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
 termdeck poll <session> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
