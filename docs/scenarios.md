@@ -8,8 +8,8 @@ Use one persistent session for commands that need the same cwd, environment, she
 
 ```bash
 termdeck new build --cwd /repo
-termdeck run build 'pnpm install' --timeout-ms 120000 --quiescence-ms 500 --strip-ansi
-termdeck run build 'pnpm test' --timeout-ms 120000 --quiescence-ms 500 --strip-ansi
+termdeck run build 'pnpm install' --timeout-ms 120000 --quiescence-ms 500
+termdeck run build 'pnpm test' --timeout-ms 120000 --quiescence-ms 500
 termdeck expect-prompt build --timeout-ms 30000
 termdeck log build --lines 200
 ```
@@ -26,8 +26,8 @@ Start a background job and poll later.
 
 ```bash
 termdeck new bg --cwd /repo
-termdeck run bg "sh -c 'sleep 3; echo background-finished' &" --quiescence-ms 300 --strip-ansi
-termdeck poll bg --timeout-ms 5000 --quiescence-ms 300 --strip-ansi
+termdeck run bg "sh -c 'sleep 3; echo background-finished' &" --quiescence-ms 300
+termdeck poll bg --timeout-ms 5000 --quiescence-ms 300
 ```
 
 Use this for commands that schedule work but return control to the shell. Examples: local dev servers, file watchers, queue workers, or delayed diagnostics.
@@ -71,7 +71,7 @@ termdeck send py 'x = 40 + 2'
 termdeck ctrl py m
 termdeck send py 'print(x)'
 termdeck ctrl py m
-termdeck poll py --timeout-ms 5000 --quiescence-ms 300 --strip-ansi
+termdeck poll py --timeout-ms 5000 --quiescence-ms 300
 ```
 
 State detection reports Python and PDB prompts as `repl`.
@@ -92,7 +92,7 @@ termdeck run debug 'python3 -m pdb script.py' --timeout-ms 5000 --quiescence-ms 
 termdeck expect debug '\(Pdb\)' --timeout-ms 5000
 termdeck send debug 'where'
 termdeck ctrl debug m
-termdeck poll debug --timeout-ms 5000 --quiescence-ms 300 --strip-ansi
+termdeck poll debug --timeout-ms 5000 --quiescence-ms 300
 ```
 
 Continue:
@@ -105,7 +105,7 @@ termdeck ctrl debug m
 Interrupt a runaway program:
 
 ```bash
-termdeck signal debug INT --timeout-ms 5000 --strip-ansi
+termdeck signal debug INT --timeout-ms 5000
 ```
 
 ## 6. Interactive password prompt
@@ -134,7 +134,7 @@ Use one terminal session to keep a remote login alive across agent steps.
 termdeck new ssh-prod --cwd "$HOME"
 termdeck run ssh-prod 'ssh user@host' --timeout-ms 10000 --quiescence-ms 500
 termdeck expect-prompt ssh-prod --timeout-ms 30000
-termdeck run ssh-prod 'hostname && pwd' --timeout-ms 5000 --quiescence-ms 300 --strip-ansi
+termdeck run ssh-prod 'hostname && pwd' --timeout-ms 5000 --quiescence-ms 300
 ```
 
 If SSH asks for a password or key passphrase:
@@ -173,7 +173,7 @@ Navigate:
 termdeck ctrl pager f   # page down in many pagers
 termdeck ctrl pager b   # page up in many pagers
 termdeck send pager q   # quit less/man/git pager
-termdeck poll pager --timeout-ms 3000 --quiescence-ms 300 --strip-ansi
+termdeck poll pager --timeout-ms 3000 --quiescence-ms 300
 ```
 
 TermDeck state detection can report `pager` when it sees common pager markers.
@@ -245,7 +245,7 @@ uptime -p
 free -h
 df -h /
 ps -eo pid,ppid,stat,pcpu,pmem,comm --sort=-pcpu | head -10
-' --timeout-ms 30000 --quiescence-ms 500 --strip-ansi
+' --timeout-ms 30000 --quiescence-ms 500
 ```
 
 `script` writes a temporary heredoc script in the active terminal and runs it with `bash` by default. It reports a `__TERMDECK_EXIT:<code>__` marker in output. Use `--shell <shell>` if the script needs another interpreter.
@@ -270,7 +270,7 @@ A session behaves like a human terminal. State persists inside that shell.
 termdeck new env --cwd /repo
 termdeck run env 'export FOO=bar'
 termdeck run env 'cd src'
-termdeck run env 'printf "FOO=$FOO PWD=$PWD\n"' --strip-ansi
+termdeck run env 'printf "FOO=$FOO PWD=$PWD\n"'
 ```
 
 Use separate sessions when tasks require independent cwd, environment, or foreground programs.
@@ -340,7 +340,7 @@ termdeckd
 If a foreground command hangs:
 
 ```bash
-termdeck signal main INT --timeout-ms 5000 --strip-ansi
+termdeck signal main INT --timeout-ms 5000
 termdeck screen main
 ```
 

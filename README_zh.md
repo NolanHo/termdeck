@@ -66,7 +66,7 @@ termdeck new main --cwd "$PWD"
 运行命令：
 
 ```bash
-termdeck run main 'pwd && ls' --timeout-ms 5000 --strip-ansi
+termdeck run main 'pwd && ls' --timeout-ms 5000
 ```
 
 轮询新输出：
@@ -103,12 +103,12 @@ termdeck configure <session> [--prompt-regex <regex>]
 终端 I/O：
 
 ```bash
-termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
-termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
-termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
-termdeck send <session> <data> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
-termdeck ctrl <session> <key> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
-termdeck poll <session> [--timeout-ms N] [--quiescence-ms N] [--strip-ansi]
+termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N]
+termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N]
+termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N]
+termdeck send <session> <data> [--timeout-ms N] [--quiescence-ms N]
+termdeck ctrl <session> <key> [--timeout-ms N] [--quiescence-ms N]
+termdeck poll <session> [--timeout-ms N] [--quiescence-ms N]
 termdeck password <session> [--timeout-ms N] [--quiescence-ms N]
 termdeck signal <session> <signal> [--timeout-ms N] [--quiescence-ms N]
 ```
@@ -131,8 +131,8 @@ termdeck clear-scrollback <session>
 同步等待：
 
 ```bash
-termdeck expect <session> <pattern> [--timeout-ms N] [--strip-ansi]
-termdeck expect-prompt <session> [--timeout-ms N] [--strip-ansi]
+termdeck expect <session> <pattern> [--timeout-ms N]
+termdeck expect-prompt <session> [--timeout-ms N]
 ```
 
 ## Daemon 配置

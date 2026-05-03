@@ -88,23 +88,19 @@ Run a command and wait for output quiescence:
 termdeck run main 'pnpm test' --timeout-ms 120000 --quiescence-ms 500
 ```
 
-By default, commands print the incremental terminal output only. Metadata is hidden unless you request JSON.
+By default, commands print the incremental terminal output with ANSI escapes removed for agent-readable text. Metadata is hidden unless you request JSON.
 
 ```bash
 termdeck run main 'echo ok' --json
 ```
 
-Use `--raw` when a command path needs the raw response fallback instead of the default display mode:
+Use `--raw` when a command path needs the original PTY bytes, including ANSI color/control sequences:
 
 ```bash
 termdeck run main 'echo ok' --raw
 ```
 
-Remove ANSI escape sequences from the returned output:
-
-```bash
-termdeck run main 'ls --color=always' --strip-ansi
-```
+The raw stream remains in transcript/events and is used by the Web UI. The CLI default is the daemon-derived text view.
 
 Poll output produced since the previous operation mark:
 
@@ -122,13 +118,13 @@ termdeck ctrl main m
 Run a script block without changing the persistent shell state:
 
 ```bash
-termdeck script main --inline 'printf "HOST=%s\n" "$(hostname)"; df -h /' --timeout-ms 30000 --strip-ansi
+termdeck script main --inline 'printf "HOST=%s\n" "$(hostname)"; df -h /' --timeout-ms 30000
 ```
 
 Paste text into the active terminal using bracketed paste:
 
 ```bash
-termdeck paste main --inline 'printf paste-ok' --enter --timeout-ms 5000 --strip-ansi
+termdeck paste main --inline 'printf paste-ok' --enter --timeout-ms 5000
 ```
 
 Use `run` for one interactive shell command whose side effects should persist. Use `script` for multiline diagnostics or complex quoting. Use `paste` for REPL/editor/TUI input.
@@ -136,7 +132,7 @@ Use `run` for one interactive shell command whose side effects should persist. U
 `run` does not rewrite commands. If a command has unmatched quotes or an unfinished heredoc, the shell can enter continuation mode. TermDeck reports that as `prompt: continuation` with reason `shell continuation prompt`; recover with Ctrl-C:
 
 ```bash
-termdeck ctrl main c --timeout-ms 3000 --strip-ansi
+termdeck ctrl main c --timeout-ms 3000
 ```
 
 Common control keys:
@@ -153,7 +149,7 @@ termdeck ctrl main l   # Ctrl-L
 Wait for a text pattern:
 
 ```bash
-termdeck expect main 'tests [0-9]+.*pass' --timeout-ms 60000 --strip-ansi
+termdeck expect main 'tests [0-9]+.*pass' --timeout-ms 60000
 ```
 
 Wait for a prompt-like ready state:
@@ -309,8 +305,8 @@ A typical automation loop:
 
 ```bash
 termdeck new build --cwd "$PWD"
-termdeck run build 'pnpm install' --timeout-ms 120000 --quiescence-ms 500 --strip-ansi
-termdeck run build 'pnpm test' --timeout-ms 120000 --quiescence-ms 500 --strip-ansi
+termdeck run build 'pnpm install' --timeout-ms 120000 --quiescence-ms 500
+termdeck run build 'pnpm test' --timeout-ms 120000 --quiescence-ms 500
 termdeck expect-prompt build --timeout-ms 30000
 termdeck log build --lines 200
 ```
