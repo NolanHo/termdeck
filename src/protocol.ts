@@ -9,12 +9,14 @@ import {
   ExpectPromptSchema,
   ExpectSchema,
   EnvelopeSchema,
+  EventsSchema,
   EventSchema,
   ExitSchema,
   HistorySchema,
   InspectSchema,
   KillSchema,
   ListSessionsSchema,
+  LogSchema,
   MetadataSchema,
   NewSessionSchema,
   PasswordSchema,
@@ -61,7 +63,9 @@ export type Request =
   | { id: number; op: 'expectPrompt'; session: string; timeoutMs?: number }
   | { id: number; op: 'signal'; session: string; signal: string; timeoutMs?: number; quiescenceMs?: number }
   | { id: number; op: 'history' }
-  | { id: number; op: 'inspect'; session: string };
+  | { id: number; op: 'inspect'; session: string }
+  | { id: number; op: 'log'; session: string; lines?: number }
+  | { id: number; op: 'events'; session: string; afterSeq?: number; limit?: number };
 
 export type RequestInput = Request extends infer R ? R extends Request ? Omit<R, 'id'> : never : never;
 
@@ -82,6 +86,8 @@ export type Response = {
   droppedChars?: number;
   metadata?: Record<string, unknown>;
   history?: Array<Record<string, unknown>>;
+  logText?: string;
+  eventsText?: string;
 };
 
 export type Event =
@@ -130,6 +136,10 @@ export class FrameReader extends EventEmitter {
 
 export function writeFrame(socket: Socket, frame: Frame): boolean {
   return socket.write(encodeFrame(frame));
+}
+
+export function encodeEvent(event: Event): Buffer {
+  return Buffer.from(toBinary(EventSchema, toPbEvent(event)));
 }
 
 function toEnvelope(frame: Frame): Envelope {
@@ -200,6 +210,10 @@ function toPbRequest(req: Request): PbRequest {
       return create(RequestSchema, { op: { case: 'history', value: create(HistorySchema) } });
     case 'inspect':
       return create(RequestSchema, { session, op: { case: 'inspect', value: create(InspectSchema) } });
+    case 'log':
+      return create(RequestSchema, { session, op: { case: 'log', value: create(LogSchema, { lines: req.lines ?? 0 }) } });
+    case 'events':
+      return create(RequestSchema, { session, op: { case: 'events', value: create(EventsSchema, { afterSeq: BigInt(req.afterSeq ?? 0), limit: req.limit ?? 0 }) } });
   }
 }
 
@@ -248,6 +262,10 @@ function fromPbRequest(id: number, req: PbRequest): Request {
       return { id, op: 'history' };
     case 'inspect':
       return { id, op: 'inspect', session };
+    case 'log':
+      return withDefined({ id, op: 'log', session, lines: req.op.value.lines || undefined }) as Request;
+    case 'events':
+      return withDefined({ id, op: 'events', session, afterSeq: Number(req.op.value.afterSeq) || undefined, limit: req.op.value.limit || undefined }) as Request;
     default:
       throw new Error('empty request op');
   }
@@ -273,6 +291,8 @@ function toPbResponse(res: Response): PbResponse {
     droppedChars: BigInt(res.droppedChars ?? 0),
     metadataJson: res.metadata ? JSON.stringify(res.metadata) : '',
     historyJson: res.history ? JSON.stringify(res.history) : '',
+    logText: res.logText ?? '',
+    eventsText: res.eventsText ?? '',
     sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
@@ -290,6 +310,8 @@ function fromPbResponse(id: number, res: PbResponse): Response {
   if (res.droppedChars) out.droppedChars = Number(res.droppedChars);
   if (res.metadataJson) out.metadata = JSON.parse(res.metadataJson) as Record<string, unknown>;
   if (res.historyJson) out.history = JSON.parse(res.historyJson) as Array<Record<string, unknown>>;
+  if (res.logText) out.logText = res.logText;
+  if (res.eventsText) out.eventsText = res.eventsText;
   return out;
 }
 

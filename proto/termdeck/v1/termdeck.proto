@@ -38,6 +38,8 @@ message Request {
     Signal signal = 28;
     History history = 29;
     Inspect inspect = 30;
+    Log log = 31;
+    Events events = 32;
   }
 }
 
@@ -57,6 +59,8 @@ message Response {
   uint64 dropped_chars = 13;
   string metadata_json = 14;
   string history_json = 15;
+  string log_text = 16;
+  string events_text = 17;
 }
 
 message Event {
@@ -140,6 +144,15 @@ message Metadata {}
 message History {}
 
 message Inspect {}
+
+message Log {
+  uint32 lines = 1;
+}
+
+message Events {
+  uint64 after_seq = 1;
+  uint32 limit = 2;
+}
 
 message ClearScrollback {}
 

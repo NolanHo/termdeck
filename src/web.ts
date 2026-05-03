@@ -29,6 +29,7 @@ import { FitAddon } from '/xterm-addon-fit.js';
 
 const select = document.querySelector('#sessions');
 const status = document.querySelector('#status');
+const utf8 = new TextDecoder();
 const fit = new FitAddon();
 const term = new Terminal({ convertEol: true, cursorBlink: false, disableStdin: true });
 term.loadAddon(fit);
@@ -70,7 +71,7 @@ function connectEvents(id) {
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => { status.textContent = 'observing ' + id; };
   ws.onmessage = (msg) => {
-    const event = JSON.parse(msg.data);
+    const event = decodeEvent(new Uint8Array(msg.data));
     if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
     if (event.kind === 'output') term.write(event.data);
     if (event.kind === 'state') status.textContent = id + ' ' + event.status;
@@ -80,6 +81,66 @@ function connectEvents(id) {
     status.textContent = 'disconnected';
     if (currentSession === id) reconnectTimer = setTimeout(() => connectEvents(id), 1000);
   };
+}
+
+function decodeEvent(buf) {
+  const r = reader(buf);
+  const event = {};
+  while (!r.eof()) {
+    const tag = Number(r.varint());
+    const field = tag >> 3;
+    if (field === 1) event.session = utf8.decode(r.bytes());
+    else if (field === 2) event.seq = Number(r.varint());
+    else if (field === 3) event.tsMs = Number(r.varint());
+    else if (field === 10) { event.kind = 'output'; event.data = utf8.decode(r.bytes()); }
+    else if (field === 11) { event.kind = 'input'; event.data = utf8.decode(r.bytes()); }
+    else if (field === 13) Object.assign(event, decodeState(r.bytes()));
+    else if (field === 14) { event.kind = 'exit'; r.bytes(); }
+    else skip(r, tag & 7);
+  }
+  return event;
+}
+
+function decodeState(buf) {
+  const r = reader(buf);
+  const out = { kind: 'state' };
+  while (!r.eof()) {
+    const tag = Number(r.varint());
+    const field = tag >> 3;
+    if (field === 1) out.status = utf8.decode(r.bytes());
+    else if (field === 2) out.reason = utf8.decode(r.bytes());
+    else skip(r, tag & 7);
+  }
+  return out;
+}
+
+function reader(buf) {
+  let i = 0;
+  const r = {
+    eof: () => i >= buf.length,
+    varint: () => {
+      let x = 0n, shift = 0n;
+      while (true) {
+        const b = buf[i++];
+        x |= BigInt(b & 0x7f) << shift;
+        if ((b & 0x80) === 0) return x;
+        shift += 7n;
+      }
+    },
+    bytes: () => {
+      const n = Number(r.varint());
+      const out = buf.slice(i, i + n);
+      i += n;
+      return out;
+    },
+  };
+  return r;
+}
+
+function skip(r, wire) {
+  if (wire === 0) r.varint();
+  else if (wire === 2) r.bytes();
+  else throw new Error('unsupported protobuf wire type ' + wire);
 }
 
 window.addEventListener('resize', () => fit.fit());

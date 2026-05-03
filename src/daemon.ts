@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { createServer, Socket, type Server as NetServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import type { Duplex } from 'node:stream';
-import { FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
+import { encodeEvent, FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { TermSession } from './session.js';
 import { webAppJs, webHtml } from './web.js';
@@ -113,6 +113,24 @@ function inspectSession(id: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
 }
 
+function tailFile(file: string, lines: number): string {
+  const text = readFileSync(file, 'utf8');
+  if (!lines || lines <= 0) return text;
+  return text.split('\n').slice(-lines).join('\n');
+}
+
+function eventLines(id: string, afterSeq: number, limit: number): string {
+  const file = join(sessionDir(id), 'events.jsonl');
+  const rows = readFileSync(file, 'utf8').split('\n').filter(Boolean).filter((row) => {
+    try {
+      return Number((JSON.parse(row) as { seq?: number }).seq ?? 0) > afterSeq;
+    } catch {
+      return false;
+    }
+  });
+  return rows.slice(0, limit || rows.length).join('\n');
+}
+
 async function handle(req: Request, socket?: Socket): Promise<Response> {
   try {
     switch (req.op) {
@@ -193,6 +211,10 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
         return { id: req.id, ok: true, history: history() };
       case 'inspect':
         return { id: req.id, ok: true, metadata: manager.list()?.some((s) => s.id === req.session) ? manager.get(req.session).metadata() : inspectSession(req.session) };
+      case 'log':
+        return { id: req.id, ok: true, logText: tailFile(join(sessionDir(req.session), 'transcript.log'), req.lines ?? 200) };
+      case 'events':
+        return { id: req.id, ok: true, eventsText: eventLines(req.session, req.afterSeq ?? 0, req.limit ?? 200) };
       case 'subscribe': {
         if (!socket) return { id: req.id, ok: false, error: 'subscribe requires socket' };
         manager.subscribe(socket, req.session, req.afterSeq ?? 0);
@@ -314,18 +336,17 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
   const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0);
   const s = manager.get(session);
   const onEvent = (event: Event) => {
-    if (event.session === session) socket.write(wsText(JSON.stringify(event)));
+    if (event.session === session) socket.write(wsBinary(encodeEvent(event)));
   };
-  for (const event of s.eventsAfter(afterSeq)) socket.write(wsText(JSON.stringify(event)));
+  for (const event of s.eventsAfter(afterSeq)) socket.write(wsBinary(encodeEvent(event)));
   s.on('event', onEvent);
   socket.on('close', () => s.off('event', onEvent));
 }
 
-function wsText(text: string): Buffer {
-  const payload = Buffer.from(text);
-  if (payload.length < 126) return Buffer.concat([Buffer.from([0x81, payload.length]), payload]);
+function wsBinary(payload: Buffer): Buffer {
+  if (payload.length < 126) return Buffer.concat([Buffer.from([0x82, payload.length]), payload]);
   const header = Buffer.allocUnsafe(4);
-  header[0] = 0x81;
+  header[0] = 0x82;
   header[1] = 126;
   header.writeUInt16BE(payload.length, 2);
   return Buffer.concat([header, payload]);

@@ -40,6 +40,8 @@ function printResponse(res: Response): void {
   else if (res.transcript) process.stdout.write(`${res.transcript}\n`);
   else if (res.metadata) process.stdout.write(`${JSON.stringify(res.metadata, null, 2)}\n`);
   else if (res.history) process.stdout.write(`${JSON.stringify(res.history, null, 2)}\n`);
+  else if (res.logText) process.stdout.write(res.logText);
+  else if (res.eventsText) process.stdout.write(`${res.eventsText}\n`);
   else if (res.matched !== undefined) console.log(res.matched ? 'matched' : 'not matched');
   else if (res.sessions) {
     for (const s of res.sessions) console.log(`${s.id}\t${s.status}\t${s.cwd}`);
@@ -178,6 +180,17 @@ program.command('history')
 program.command('inspect')
   .argument('<session>')
   .action(async (session) => printResponse(await request({ op: 'inspect', session })));
+
+program.command('log')
+  .argument('<session>')
+  .option('--lines <lines>', 'line count', (v) => Number(v))
+  .action(async (session, opts) => printResponse(await request({ op: 'log', session, lines: opts.lines })));
+
+program.command('events')
+  .argument('<session>')
+  .option('--after-seq <seq>', 'minimum seq', (v) => Number(v))
+  .option('--limit <limit>', 'max events', (v) => Number(v))
+  .action(async (session, opts) => printResponse(await request({ op: 'events', session, afterSeq: opts.afterSeq, limit: opts.limit })));
 
 program.command('clear-scrollback')
   .argument('<session>')
