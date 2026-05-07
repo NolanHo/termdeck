@@ -5,7 +5,7 @@ export type StateResult = { status: Status; reason: string; prompt: PromptKind }
 
 const passwordRx = /(?:password|passphrase).*:\s*$/i;
 const confirmRx = /(?:yes\/no|y\/n|\[[yY]\/[nN]\]|\[[nN]\/[yY]\])\s*$/i;
-const defaultPromptRx = /(?:^|\n).*(?:[$#%]|>|➜)\s*$/;
+const defaultPromptRx = /(?:^|\n).*(?:(?:[$#%>]|➜)(?:\s|$)|[✗✔]\s*$)/;
 const continuationRx = /^(?:quote>|dquote>|bquote>|heredoc>|>)\s?$/;
 const editorRx = /(?:--\s*(?:INSERT|NORMAL|VISUAL|REPLACE)\s*--|\b(?:GNU nano|File Name to Write|Write Out|Read File|Where Is|Save modified buffer)\b|\b(?:emacs|fundamental|text|lisp|python|typescript|javascript)-mode\b)/i;
 

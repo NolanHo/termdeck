@@ -63,6 +63,12 @@ termdeckd
 termdeck new main --cwd "$PWD"
 ```
 
+也可以让 agent step 在首次使用时创建会话：
+
+```bash
+termdeck step main 'pwd && ls' --cwd "$PWD" --timeout-ms 5000 --autostart
+```
+
 运行命令：
 
 ```bash
@@ -73,6 +79,12 @@ termdeck run main 'pwd && ls' --timeout-ms 5000
 
 ```bash
 termdeck poll main --quiescence-ms 200
+```
+
+查看当前状态和渲染后的屏幕尾部：
+
+```bash
+termdeck state main --lines 12
 ```
 
 以纯文本读取渲染后的屏幕：
@@ -105,6 +117,7 @@ termdeck configure <session> [--prompt-regex <regex>]
 终端 I/O：
 
 ```bash
+termdeck step <session> [command] [--cwd <path>] [--op run|poll|send|paste|ctrl|signal] [--timeout-ms N] [--startup-timeout-ms N] [--quiescence-ms N] [--lines N] [--autostart]
 termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N]
 termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N]
 termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N]
@@ -118,6 +131,7 @@ termdeck signal <session> <signal> [--timeout-ms N] [--quiescence-ms N]
 检查与回放：
 
 ```bash
+termdeck state <session> [--lines N] [--autostart]
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -129,6 +143,8 @@ termdeck events <session> [--after-seq N] [--limit N]
 termdeck replay <session> [--lines N]
 termdeck clear-scrollback <session>
 ```
+
+`step` 是面向 agent 的糖衣命令：它可以用 `--cwd` 创建缺失会话，执行一个动作，并固定以一行紧凑状态结束，包含 `status`、`prompt`、`reason`、超时、退出码和截断标记。调用方需要完整对象时使用 `--json`。
 
 同步等待：
 

@@ -1,8 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdirSync, openSync, readFileSync } from 'node:fs';
 import { connect } from 'node:net';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { FrameReader, writeFrame, type Request, type RequestInput, type Response } from './protocol.js';
-import { socketPath } from './paths.js';
+import { daemonLogPath, socketPath } from './paths.js';
 
 let nextId = 1;
 
@@ -28,6 +31,105 @@ function request(req: RequestInput): Promise<Response> {
       else reject(err);
     });
   });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+function isDaemonMissing(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('termdeckd is not running');
+}
+
+async function requestWithDaemon(req: RequestInput, autostart = false): Promise<Response> {
+  try {
+    return await request(req);
+  } catch (err) {
+    if (!autostart || !isDaemonMissing(err)) throw err;
+    await startDaemon();
+    return request(req);
+  }
+}
+
+async function startDaemon(): Promise<void> {
+  mkdirSync(dirname(socketPath), { recursive: true, mode: 0o700 });
+  mkdirSync(dirname(daemonLogPath), { recursive: true, mode: 0o700 });
+  const cliFile = fileURLToPath(import.meta.url);
+  const cliDir = dirname(cliFile);
+  const isSourceRun = cliFile.endsWith('.ts');
+  const logFd = openSync(daemonLogPath, 'a');
+  const child = spawn(isSourceRun ? 'tsx' : process.execPath, [resolve(cliDir, isSourceRun ? 'daemon.ts' : 'daemon.js')], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+  child.unref();
+  for (let i = 0; i < 50; i++) {
+    try {
+      await request({ op: 'list' });
+      return;
+    } catch {
+      await sleep(100);
+    }
+  }
+  throw new Error(`termdeckd did not become ready at ${socketPath}; check ${daemonLogPath}`);
+}
+
+async function ensureSession(session: string, opts: { cwd?: string; shell?: string; rows?: number; cols?: number; promptRegex?: string; autostart?: boolean; startupTimeoutMs?: number }): Promise<void> {
+  const list = await requestWithDaemon({ op: 'list' }, opts.autostart);
+  if (list.sessions?.some((s) => s.id === session)) return;
+  if (!opts.cwd) throw new Error(`unknown session: ${session}; pass --cwd to create it`);
+  const res = await requestWithDaemon({ op: 'new', session, cwd: opts.cwd, shell: opts.shell, rows: opts.rows, cols: opts.cols, promptRegex: opts.promptRegex }, opts.autostart);
+  if (!res.ok) throw new Error(res.error ?? `failed to create session: ${session}`);
+  await requestWithDaemon({ op: 'expectPrompt', session, timeoutMs: opts.startupTimeoutMs ?? 5_000, stripAnsi: true }, opts.autostart);
+}
+
+function tailLines(text: string, lines: number): string {
+  if (!lines || lines <= 0) return '';
+  return text.split(/\r?\n/).slice(-lines).join('\n').replace(/\n+$/, '');
+}
+
+function stateSummary(res: Response): string {
+  const parts = [`status=${res.status ?? 'unknown'}`];
+  if (res.prompt) parts.push(`prompt=${res.prompt}`);
+  if (res.reason) parts.push(`reason=${JSON.stringify(res.reason)}`);
+  if (res.lastSeq !== undefined) parts.push(`seq=${res.lastSeq}`);
+  if (res.timedOut) parts.push('timed_out=true');
+  if (res.exitCode !== undefined) parts.push(`exit_code=${res.exitCode}`);
+  if (res.outputTruncated) parts.push(`truncated=true dropped=${res.droppedChars ?? 0}`);
+  return parts.join(' ');
+}
+
+function printStep(res: Response, mode: 'default' | 'json'): void {
+  if (!res.ok) {
+    console.error(res.error ?? 'request failed');
+    process.exitCode = 1;
+    return;
+  }
+  if (mode === 'json') {
+    process.stdout.write(`${JSON.stringify(res, null, 2)}\n`);
+    return;
+  }
+  if (res.output) {
+    process.stdout.write(res.output);
+    if (!res.output.endsWith('\n')) process.stdout.write('\n');
+  }
+  if (res.screen) {
+    process.stdout.write(res.screen);
+    if (!res.screen.endsWith('\n')) process.stdout.write('\n');
+  }
+  process.stdout.write(`\n[termdeck] ${stateSummary(res)}\n`);
+}
+
+function stateSnapshot(status: Response, screen: Response, lines: number): Response {
+  const screenTail = tailLines(screen.screen ?? '', lines);
+  return {
+    ...status,
+    screen: screenTail || undefined,
+    metadata: {
+      ...(status.metadata ?? {}),
+      screenTail,
+    },
+  };
 }
 
 function printResponse(res: Response, mode: 'default' | 'raw' | 'json' = 'default'): void {
@@ -102,6 +204,73 @@ program.command('new')
   .option('--prompt-regex <regex>')
   .action(async (session, opts) => {
     printResponse(await request({ op: 'new', session, cwd: opts.cwd, shell: opts.shell, rows: opts.rows, cols: opts.cols, promptRegex: opts.promptRegex }));
+  });
+
+program.command('state')
+  .argument('<session>')
+  .option('--lines <lines>', 'rendered screen tail lines', (v) => Number(v), 12)
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (session, opts) => {
+    const meta = await requestWithDaemon({ op: 'metadata', session }, opts.autostart);
+    if (!meta.ok) return printResponse(meta, opts.json ? 'json' : 'default');
+    const screen = await requestWithDaemon({ op: 'screen', session }, opts.autostart);
+    printStep(stateSnapshot(meta, screen, opts.lines), opts.json ? 'json' : 'default');
+  });
+
+program.command('step')
+  .argument('<session>')
+  .argument('[command]')
+  .option('--cwd <path>', 'create session in cwd when missing')
+  .option('--shell <shell>')
+  .option('--rows <rows>', 'terminal rows', (v) => Number(v))
+  .option('--cols <cols>', 'terminal cols', (v) => Number(v))
+  .option('--prompt-regex <regex>')
+  .option('--op <op>', 'action: run, poll, send, paste, ctrl, signal', 'run')
+  .option('--enter', 'submit paste input')
+  .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
+  .option('--startup-timeout-ms <ms>', 'new session prompt timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--lines <lines>', 'include rendered screen tail lines after poll-only steps', (v) => Number(v), 0)
+  .option('--raw')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (session, command, opts) => {
+    await ensureSession(session, { cwd: opts.cwd, shell: opts.shell, rows: opts.rows, cols: opts.cols, promptRegex: opts.promptRegex, autostart: opts.autostart, startupTimeoutMs: opts.startupTimeoutMs });
+    const stripAnsi = !opts.raw;
+    let res: Response;
+    switch (opts.op) {
+      case 'run':
+        if (!command) throw new Error('step --op run requires a command');
+        res = await requestWithDaemon({ op: 'run', session, command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'poll':
+        res = await requestWithDaemon({ op: 'poll', session, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'send':
+        if (command === undefined) throw new Error('step --op send requires data');
+        res = await requestWithDaemon({ op: 'send', session, data: command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'paste':
+        if (command === undefined) throw new Error('step --op paste requires text');
+        res = await requestWithDaemon({ op: 'paste', session, data: command, enter: opts.enter, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'ctrl':
+        if (!command) throw new Error('step --op ctrl requires a key');
+        res = await requestWithDaemon({ op: 'ctrl', session, key: command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'signal':
+        if (!command) throw new Error('step --op signal requires a signal');
+        res = await requestWithDaemon({ op: 'signal', session, signal: command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      default:
+        throw new Error(`unknown step op: ${opts.op}`);
+    }
+    if (opts.lines > 0) {
+      const screen = await requestWithDaemon({ op: 'screen', session }, opts.autostart);
+      res = stateSnapshot(res, screen, opts.lines);
+    }
+    printStep(res, opts.json ? 'json' : 'default');
   });
 
 program.command('run')

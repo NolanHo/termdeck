@@ -24,7 +24,7 @@ test('roundtrips protobuf request frame', async () => {
 });
 
 test('roundtrips protobuf response frame', async () => {
-  const payload: Response = { id: 8, ok: true, status: 'ready', output: 'ok', lastSeq: 3 };
+  const payload: Response = { id: 8, ok: true, status: 'ready', prompt: 'shell', reason: 'default prompt regex', output: 'ok', lastSeq: 3 };
   assert.deepEqual(await roundtrip({ type: 'response', payload }), { type: 'response', payload: { ...payload, timedOut: false, sessions: [] } });
 });
 

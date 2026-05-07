@@ -8,7 +8,7 @@ import serializeAddon from '@xterm/addon-serialize';
 import { signalProcessGroup } from './platform.js';
 import { TextRing } from './ring.js';
 import { detectState, type StateResult } from './state.js';
-import type { Event, Status } from './protocol.js';
+import type { Event, PromptKind, Status } from './protocol.js';
 import { sessionDir } from './paths.js';
 
 const { Terminal } = xtermHeadless;
@@ -24,7 +24,7 @@ export type SessionOptions = {
   description?: string;
 };
 
-export type WaitResult = { output: string; status: Status; timedOut: boolean; outputTruncated: boolean; droppedChars: number; exitCode?: number };
+export type WaitResult = { output: string; status: Status; prompt: PromptKind; reason: string; lastSeq: number; timedOut: boolean; outputTruncated: boolean; droppedChars: number; exitCode?: number };
 
 function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const next = { ...env };
@@ -137,6 +137,10 @@ export class TermSession extends EventEmitter {
 
   info(): { id: string; cwd: string; rows: number; cols: number; status: Status; lastSeq: number; promptRegex?: string } {
     return { id: this.id, cwd: this.cwd, rows: this.rows, cols: this.cols, status: this.status().status, lastSeq: this.seq, promptRegex: this.promptRegex };
+  }
+
+  lastSeq(): number {
+    return this.seq;
   }
 
   metadata(): Record<string, unknown> {
@@ -313,7 +317,8 @@ printf '\n__TERMDECK_BEGIN:%s__\n' '${delimiter}'; ${shell} /tmp/${delimiter}.sh
         clearInterval(timer);
         this.off('output', onOutput);
         const result = this.resultSince(mark, timedOut);
-        this.maybeEmitState(result.status, this.status().reason);
+        this.maybeEmitState(result.status, result.reason);
+        result.lastSeq = this.seq;
         appendFileSync(this.interactionPath, `${JSON.stringify({ tsMs: Date.now(), result })}\n`, { mode: 0o600 });
         resolve(result);
       };
@@ -333,7 +338,7 @@ printf '\n__TERMDECK_BEGIN:%s__\n' '${delimiter}'; ${shell} /tmp/${delimiter}.sh
   private resultSince(mark: number, timedOut: boolean): WaitResult {
     const state = this.status();
     const output = this.ring.sinceWithStats(mark);
-    return { output: output.text, status: state.status, timedOut, outputTruncated: output.truncated, droppedChars: output.droppedChars };
+    return { output: output.text, status: state.status, prompt: state.prompt, reason: state.reason, lastSeq: this.seq, timedOut, outputTruncated: output.truncated, droppedChars: output.droppedChars };
   }
 
   private onOutput(data: string): void {

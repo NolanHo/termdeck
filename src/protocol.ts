@@ -95,6 +95,7 @@ export type Response = {
   history?: Array<Record<string, unknown>>;
   logText?: string;
   eventsText?: string;
+  reason?: string;
 };
 
 export type Event =
@@ -313,6 +314,7 @@ function toPbResponse(res: Response): PbResponse {
     logText: res.logText ?? '',
     eventsText: res.eventsText ?? '',
     exitCode: res.exitCode,
+    reason: res.reason ?? '',
     sessions: (res.sessions ?? []).map((s) => create(SessionInfoSchema, { ...s, lastSeq: BigInt(s.lastSeq), promptRegex: s.promptRegex ?? '' })),
   });
 }
@@ -333,6 +335,7 @@ function fromPbResponse(id: number, res: PbResponse): Response {
   if (res.historyJson) out.history = JSON.parse(res.historyJson) as Array<Record<string, unknown>>;
   if (res.logText) out.logText = res.logText;
   if (res.eventsText) out.eventsText = res.eventsText;
+  if (res.reason) out.reason = res.reason;
   return out;
 }
 

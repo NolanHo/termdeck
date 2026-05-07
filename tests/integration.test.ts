@@ -37,6 +37,12 @@ test('daemon cli and web smoke', async () => {
     await run('tsx', ['src/cli.ts', 'new', 'int', '--cwd', process.cwd()], env);
     const out = await run('tsx', ['src/cli.ts', 'run', 'int', 'printf int-ok'], env);
     assert.match(out, /int-ok/);
+    const step = await run('tsx', ['src/cli.ts', 'step', 'int', 'printf step-ok', '--timeout-ms', '5000'], env);
+    assert.match(step, /step-ok/);
+    assert.match(step, /\[termdeck\] status=ready/);
+    assert.match(step, /reason="custom prompt regex"|reason="default prompt regex"/);
+    const state = await run('tsx', ['src/cli.ts', 'state', 'int', '--lines', '5'], env);
+    assert.match(state, /\[termdeck\] status=ready/);
     assert.match(await run('tsx', ['src/cli.ts', 'log', 'int', '--lines', '5'], env), /int-ok/);
     const res = await fetch('http://127.0.0.1:8876/api/sessions');
     assert.equal(res.status, 200);

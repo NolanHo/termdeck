@@ -94,8 +94,13 @@ function assertNever(x: never): never {
   throw new Error(`unknown request: ${JSON.stringify(x)}`);
 }
 
-function result(id: number, r: { status: import('./protocol.js').Status; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number; exitCode?: number }, strip = false): Response {
-  return { id, ok: true, status: r.status, output: strip ? stripAnsi(r.output) : r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars, exitCode: r.exitCode };
+function statusResponse(id: number, s: TermSession, extra: Partial<Response> = {}): Response {
+  const state = s.status();
+  return { id, ok: true, status: state.status, prompt: state.prompt, reason: state.reason, lastSeq: s.lastSeq(), ...extra };
+}
+
+function result(id: number, r: { status: import('./protocol.js').Status; prompt?: import('./protocol.js').PromptKind; reason?: string; lastSeq?: number; output: string; timedOut: boolean; outputTruncated: boolean; droppedChars: number; exitCode?: number }, strip = false): Response {
+  return { id, ok: true, status: r.status, prompt: r.prompt, reason: r.reason, lastSeq: r.lastSeq, output: strip ? stripAnsi(r.output) : r.output, timedOut: r.timedOut, outputTruncated: r.outputTruncated, droppedChars: r.droppedChars, exitCode: r.exitCode };
 }
 
 function history(): Array<Record<string, unknown>> {
@@ -140,8 +145,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
     switch (req.op) {
       case 'new': {
         const s = manager.create(req);
-        const state = s.status();
-        return { id: req.id, ok: true, status: state.status, prompt: state.prompt, lastSeq: s.info().lastSeq };
+        return statusResponse(req.id, s);
       }
       case 'run': {
         const r = await manager.get(req.session).run(req.command, req.timeoutMs, req.quiescenceMs);
@@ -169,11 +173,11 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'screen': {
         const s = manager.get(req.session);
-        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt, screen: s.screen() };
+        return statusResponse(req.id, s, { screen: s.screen() });
       }
       case 'scrollback': {
         const s = manager.get(req.session);
-        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt, screen: s.scrollback(req.lines) };
+        return statusResponse(req.id, s, { screen: s.scrollback(req.lines) });
       }
       case 'list':
         return { id: req.id, ok: true, sessions: manager.list() };
@@ -183,7 +187,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       case 'configure': {
         const s = manager.get(req.session);
         s.configure(req.promptRegex);
-        return { id: req.id, ok: true, status: s.status().status };
+        return statusResponse(req.id, s);
       }
       case 'expect': {
         const r = await manager.get(req.session).expect(req.pattern, req.timeoutMs);
@@ -195,21 +199,21 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       }
       case 'transcript': {
         const s = manager.get(req.session);
-        return { id: req.id, ok: true, transcript: s.transcriptFile(), status: s.status().status };
+        return statusResponse(req.id, s, { transcript: s.transcriptFile() });
       }
       case 'resize': {
         const s = manager.get(req.session);
         s.resize(req.rows, req.cols);
-        return { id: req.id, ok: true, status: s.status().status };
+        return statusResponse(req.id, s);
       }
       case 'metadata': {
         const s = manager.get(req.session);
-        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt, metadata: s.metadata() };
+        return statusResponse(req.id, s, { metadata: s.metadata() });
       }
       case 'clearScrollback': {
         const s = manager.get(req.session);
         s.clearScrollback();
-        return { id: req.id, ok: true, status: s.status().status, prompt: s.status().prompt };
+        return statusResponse(req.id, s);
       }
       case 'expectPrompt': {
         const r = await manager.get(req.session).expectPrompt(req.timeoutMs);

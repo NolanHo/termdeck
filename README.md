@@ -63,6 +63,12 @@ Create a session:
 termdeck new main --cwd "$PWD"
 ```
 
+Or let an agent step create it on first use:
+
+```bash
+termdeck step main 'pwd && ls' --cwd "$PWD" --timeout-ms 5000 --autostart
+```
+
 Run a command:
 
 ```bash
@@ -73,6 +79,12 @@ Poll new output:
 
 ```bash
 termdeck poll main --quiescence-ms 200
+```
+
+Check the current state with a rendered screen tail:
+
+```bash
+termdeck state main --lines 12
 ```
 
 Read the rendered screen as plain text:
@@ -105,6 +117,7 @@ termdeck configure <session> [--prompt-regex <regex>]
 Terminal I/O:
 
 ```bash
+termdeck step <session> [command] [--cwd <path>] [--op run|poll|send|paste|ctrl|signal] [--timeout-ms N] [--startup-timeout-ms N] [--quiescence-ms N] [--lines N] [--autostart]
 termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N]
 termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N]
 termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N]
@@ -118,6 +131,7 @@ termdeck signal <session> <signal> [--timeout-ms N] [--quiescence-ms N]
 Inspection:
 
 ```bash
+termdeck state <session> [--lines N] [--autostart]
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -129,6 +143,8 @@ termdeck events <session> [--after-seq N] [--limit N]
 termdeck replay <session> [--lines N]
 termdeck clear-scrollback <session>
 ```
+
+`step` is the agent-friendly wrapper: it can create a missing session with `--cwd`, perform one action, and always finishes with a compact state line including `status`, `prompt`, `reason`, timeout, exit-code, and truncation flags. Use `--json` when a caller needs the full response object.
 
 Synchronization:
 

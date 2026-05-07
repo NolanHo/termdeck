@@ -65,6 +65,7 @@ message Response {
   string log_text = 16;
   string events_text = 17;
   optional int32 exit_code = 18;
+  string reason = 19;
 }
 
 message Event {

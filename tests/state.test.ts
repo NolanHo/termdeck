@@ -18,6 +18,14 @@ test('detects ready prompt using custom regex', () => {
   });
 });
 
+test('detects common zsh theme prompt as ready', () => {
+  assert.deepEqual(detectState('➜  termdeck git:(main) ✗ '), {
+    status: 'ready',
+    reason: 'default prompt regex',
+    prompt: 'shell',
+  });
+});
+
 test('detects python prompt as repl', () => {
   assert.deepEqual(detectState('>>> '), {
     status: 'repl',
