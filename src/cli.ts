@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
 import { lastCommand } from './commands.js';
 import { projectSessionName } from './project.js';
+import { searchTermDeck, type SearchKind } from './search.js';
 import { sessionSummary } from './summary.js';
 import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { Response } from './protocol.js';
@@ -75,6 +76,24 @@ function printObject(obj: unknown, json = false): void {
   else process.stdout.write(`${JSON.stringify(obj, null, 2)}\n`);
 }
 
+function parseKinds(value?: string): SearchKind[] | undefined {
+  if (!value) return undefined;
+  return value.split(',').map((part) => part.trim()).filter(Boolean) as SearchKind[];
+}
+
+function printSearch(result: ReturnType<typeof searchTermDeck>, json = false): void {
+  if (json) {
+    printObject(result, true);
+    return;
+  }
+  for (const hit of result.hits) {
+    const target = hit.session ?? hit.task ?? hit.source;
+    const location = hit.seq !== undefined ? `seq=${hit.seq}` : `line=${hit.line}`;
+    process.stdout.write(`${hit.kind}\t${target}\t${location}\t${hit.text}\n`);
+  }
+  process.stdout.write(`[termdeck] hits=${result.hits.length} truncated=${result.truncated}\n`);
+}
+
 async function readSecret(): Promise<string> {
   if (!process.stdin.isTTY) {
     const chunks: Buffer[] = [];
@@ -142,6 +161,32 @@ program.command('last-command')
   .argument('<session>')
   .option('--json')
   .action(async (session, opts) => printObject({ command: lastCommand(session) }, opts.json));
+
+program.command('search')
+  .argument('<query>')
+  .option('--session <session>', 'filter session ids containing text')
+  .option('--cwd <path>', 'filter by exact cwd')
+  .option('--task <task>', 'filter task names containing text')
+  .option('--kind <kinds>', 'comma-separated kinds: transcript,events,commands,metadata,tasks')
+  .option('--limit <limit>', 'max hits', (v) => Number(v), 50)
+  .option('--context <lines>', 'context lines before and after each hit', (v) => Number(v), 1)
+  .option('--regex', 'treat query as a regular expression')
+  .option('--case-sensitive', 'disable case-insensitive matching')
+  .option('--json')
+  .action((query, opts) => {
+    printSearch(searchTermDeck({
+      query,
+      session: opts.session,
+      cwd: opts.cwd,
+      task: opts.task,
+      kinds: parseKinds(opts.kind),
+      limit: opts.limit,
+      context: opts.context,
+      regex: opts.regex,
+      ignoreCase: !opts.caseSensitive,
+      redact: true,
+    }), opts.json);
+  });
 
 program.command('step')
   .argument('<session>')

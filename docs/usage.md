@@ -109,6 +109,14 @@ Read the last structured command record:
 termdeck last-command main --json
 ```
 
+Search local session and task artifacts:
+
+```bash
+termdeck search 'error|failed' --regex --kind transcript,events,tasks --limit 50 --context 2 --json
+```
+
+Search scans transcripts, events, command records, session metadata, and task specs under `TERMDECK_HOME`. Use `--session`, `--task`, and `--cwd` to narrow the result set.
+
 Agent-facing text views redact common secret-shaped values by default, including returned command output, screen/log/events/summary views, and last-command records. The web snapshot remains visible because it is a local human observer surface. The raw local transcript remains an artifact on disk, so keep `TERMDECK_HOME` permissions tight and avoid entering secrets unless necessary.
 
 Use `--raw` when a command path needs the original PTY bytes, including ANSI color/control sequences:

@@ -44,9 +44,15 @@ test('daemon cli and web smoke', async () => {
     const state = await run('tsx', ['src/cli.ts', 'state', 'int', '--lines', '5'], env);
     assert.match(state, /\[termdeck\] status=ready/);
     assert.match(await run('tsx', ['src/cli.ts', 'log', 'int', '--lines', '20'], env), /int-ok/);
+    const searchOut = await run('tsx', ['src/cli.ts', 'search', 'int-ok', '--json'], env);
+    const search = JSON.parse(searchOut) as { hits?: Array<{ session?: string; kind?: string }> };
+    assert.ok(search.hits?.some((hit) => hit.session === 'int' && hit.kind === 'transcript'));
     const res = await fetch('http://127.0.0.1:8876/api/sessions');
     assert.equal(res.status, 200);
     assert.match(await res.text(), /int/);
+    const searchRes = await fetch('http://127.0.0.1:8876/api/search?q=int-ok');
+    assert.equal(searchRes.status, 200);
+    assert.match(await searchRes.text(), /int-ok/);
     await run('tsx', ['src/cli.ts', 'task', 'start', 'webtask', 'printf web-task-ok', '--cwd', process.cwd(), '--expect', 'web-task-ok', '--json'], env);
     const tasksRes = await fetch('http://127.0.0.1:8876/api/tasks');
     assert.equal(tasksRes.status, 200);

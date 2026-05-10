@@ -143,6 +143,7 @@ Inspection:
 termdeck state <session> [--lines N] [--autostart]
 termdeck summary <session> [--lines N] [--events N] [--autostart]
 termdeck last-command <session>
+termdeck search <query> [--session ID] [--cwd PATH] [--task NAME] [--kind transcript,events,commands,metadata,tasks] [--regex] [--limit N] [--context N]
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -191,9 +192,11 @@ The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `
 
 `summary` returns a compact inspection object with a screen tail, output tail, recent events, and likely error lines. `last_command` returns structured command id, command text, seq bounds, duration, exit code, timeout flag, and output tail. Use these when an agent needs state without replaying a large transcript.
 
+`search` scans local sessions and task metadata across transcripts, events, commands, session metadata, and task specs. It supports filters for session id, task name, cwd, kind, regex, limit, and context lines. The Web UI exposes the same search for human inspection.
+
 Agent-facing text views redact common secret-shaped values by default, including returned output, log/events views, summaries, and last-command records. Web snapshots and WebSocket output remain visible because the web surface is a local human observer. Raw transcripts remain local artifacts and should still be treated as sensitive.
 
-Task helpers report stale metadata, expired TTLs, exited backing processes, restart counts, readiness diagnostics, and orphan `task-*` sessions. Optional restart policies can restart exited tasks on any exit or only non-zero exit. The web UI surfaces the same dashboard data with filters for active and attention-needed work plus safe task stop/recover/prune controls.
+Task helpers report stale metadata, expired TTLs, exited backing processes, restart counts, readiness diagnostics, and orphan `task-*` sessions. Optional restart policies can restart exited tasks on any exit or only non-zero exit. The web UI surfaces the same dashboard data with filters for active and attention-needed work, task logs, search results, and safe task stop/recover/prune controls.
 
 Synchronization:
 

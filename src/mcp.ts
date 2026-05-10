@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { enrichedResponse, ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
 import { lastCommand } from './commands.js';
 import { projectSessionName } from './project.js';
+import { searchTermDeck } from './search.js';
 import { sessionSummary } from './summary.js';
 import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { RequestInput, Response } from './protocol.js';
@@ -59,6 +60,7 @@ const timeoutMs = z.number().int().positive().optional();
 const quiescenceMs = z.number().int().positive().optional();
 const stripAnsi = z.boolean().optional().default(true);
 const raw = z.boolean().optional().describe('Return raw terminal output with ANSI escapes.');
+const SearchKindSchema = z.enum(['transcript', 'events', 'commands', 'metadata', 'tasks']);
 
 const runLike = {
   session,
@@ -232,6 +234,31 @@ export function createServer(): McpServer {
     description: 'Return the last structured command record for a session.',
     inputSchema: { session },
   }, async (args) => result({ command: lastCommand(args.session) }));
+  server.registerTool('search', {
+    description: 'Search local TermDeck sessions and task metadata by transcript, events, commands, metadata, or tasks.',
+    inputSchema: {
+      query: z.string(),
+      session: z.string().optional(),
+      cwd: z.string().optional(),
+      task: z.string().optional(),
+      kinds: z.array(SearchKindSchema).optional(),
+      limit: z.number().int().positive().optional().default(50),
+      context: z.number().int().nonnegative().optional().default(1),
+      regex: z.boolean().optional(),
+      ignoreCase: z.boolean().optional().default(true),
+    },
+  }, async (args) => result(searchTermDeck({
+    query: args.query,
+    session: args.session,
+    cwd: args.cwd,
+    task: args.task,
+    kinds: args.kinds,
+    limit: args.limit,
+    context: args.context,
+    regex: args.regex,
+    ignoreCase: args.ignoreCase,
+    redact: true,
+  }) as unknown as Record<string, unknown>));
   registerRequestTool(server, 'metadata', 'Return session metadata.', { session, autostart }, (args) => ({ op: 'metadata', session: s(args, 'session') }), { autostartArg: true });
   registerRequestTool(server, 'history', 'List persisted session metadata.', { autostart }, () => ({ op: 'history' }), { autostartArg: true });
   registerRequestTool(server, 'inspect', 'Inspect live or historical session metadata.', { session, autostart }, (args) => ({ op: 'inspect', session: s(args, 'session') }), { autostartArg: true });

@@ -136,6 +136,7 @@ termdeck signal <session> <signal> [--timeout-ms N] [--quiescence-ms N]
 termdeck state <session> [--lines N] [--autostart]
 termdeck summary <session> [--lines N] [--events N] [--autostart]
 termdeck last-command <session>
+termdeck search <query> [--session ID] [--cwd PATH] [--task NAME] [--kind transcript,events,commands,metadata,tasks] [--regex] [--limit N] [--context N]
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -154,7 +155,9 @@ termdeck clear-scrollback <session>
 
 `last-command` 返回结构化 command id、命令、seq 范围、duration、exit code、timeout 和 output tail。面向 agent 的文本视图默认会对常见 secret 形态做 redaction，包括返回输出、log/events/summary 和 last-command；Web snapshot 与 WebSocket 输出仍保持可见，因为 Web 是本地人类观察面。原始 transcript 仍是本地磁盘 artifact，需要继续按敏感数据处理。
 
-后台任务支持 `--owner`、`--labels`、`--ttl-ms`、`--restart-policy`、`--max-restarts`、`--backoff-ms`、`task dashboard`、`task prune` 和 `task recover`。状态会区分 stale metadata、TTL 过期、进程已退出、restart count 和 orphan `task-*` session。Web UI 会展示 task dashboard，并提供 active/attention 过滤以及 stop/recover/prune 安全控制，但仍不向 PTY 发送输入。
+`search` 可以搜索本地 sessions 和 task metadata，覆盖 transcript、events、commands、session metadata 和 task specs，并支持 session/task/cwd/kind/regex/limit/context 过滤。Web UI 也提供同一套搜索能力，方便人类观察和定位历史输出。
+
+后台任务支持 `--owner`、`--labels`、`--ttl-ms`、`--restart-policy`、`--max-restarts`、`--backoff-ms`、`task dashboard`、`task prune` 和 `task recover`。状态会区分 stale metadata、TTL 过期、进程已退出、restart count 和 orphan `task-*` session。Web UI 会展示 task dashboard，并提供 active/attention 过滤、task logs、搜索结果以及 stop/recover/prune 安全控制，但仍不向 PTY 发送输入。
 
 同步等待：
 

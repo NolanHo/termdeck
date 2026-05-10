@@ -11,8 +11,9 @@ import { socketAccessMode } from './platform.js';
 import { redactJsonl, redactText } from './redact.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { replayTranscript } from './replay.js';
+import { searchTermDeck, type SearchKind } from './search.js';
 import { TermSession } from './session.js';
-import { taskDashboard, taskPrune, taskRecover, taskStop } from './tasks.js';
+import { taskDashboard, taskLogs, taskPrune, taskRecover, taskStop } from './tasks.js';
 import { webAppJs, webHtml } from './web.js';
 
 const require = createRequire(import.meta.url);
@@ -327,6 +328,30 @@ function handleWebRequest(req: IncomingMessage, res: { writeHead(code: number, h
     if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
     if (url.pathname === '/api/tasks') {
       void taskDashboard({ timeoutMs: 1 }).then((dashboard) => send(res, 200, 'application/json', JSON.stringify(dashboard))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
+      return;
+    }
+    if (url.pathname === '/api/search') {
+      const query = url.searchParams.get('q') ?? '';
+      if (!query) return send(res, 400, 'application/json', JSON.stringify({ ok: false, error: 'missing q' }));
+      const kinds = url.searchParams.get('kind')?.split(',').map((part) => part.trim()).filter(Boolean) as SearchKind[] | undefined;
+      return send(res, 200, 'application/json', JSON.stringify(searchTermDeck({
+        query,
+        session: url.searchParams.get('session') ?? undefined,
+        cwd: url.searchParams.get('cwd') ?? undefined,
+        task: url.searchParams.get('task') ?? undefined,
+        kinds,
+        limit: Number(url.searchParams.get('limit') ?? 50),
+        context: Number(url.searchParams.get('context') ?? 1),
+        regex: url.searchParams.get('regex') === '1',
+        ignoreCase: url.searchParams.get('caseSensitive') !== '1',
+        redact: false,
+      })));
+    }
+    const taskLogsMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/logs$/);
+    if (taskLogsMatch) {
+      const name = decodeURIComponent(taskLogsMatch[1]);
+      const lines = Number(url.searchParams.get('lines') ?? 120);
+      void taskLogs(name, lines, true).then((body) => send(res, 200, 'application/json', JSON.stringify(body))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
       return;
     }
     if (req.method === 'POST') {

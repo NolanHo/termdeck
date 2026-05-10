@@ -12,6 +12,8 @@ export const webHtml = `<!doctype html>
     #sidebar { border-right: 1px solid #1f2a44; background: #080d1a; display: flex; flex-direction: column; min-width: 0; }
     #brand { height: 46px; padding: 13px 14px; border-bottom: 1px solid #1f2a44; font-weight: 700; }
     #filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; border-bottom: 1px solid #1f2a44; }
+    #searchbar { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 8px; border-bottom: 1px solid #1f2a44; }
+    #search-input { min-width: 0; border: 1px solid #24324f; border-radius: 6px; background: #0d1424; color: #d7dde8; padding: 7px 8px; }
     .filter { border: 1px solid #24324f; border-radius: 6px; background: #0d1424; color: #cbd5e1; padding: 6px 4px; cursor: pointer; }
     .filter.active { background: #1e293b; border-color: #64748b; }
     .section-title { padding: 10px 12px 4px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
@@ -23,14 +25,15 @@ export const webHtml = `<!doctype html>
     .tab.active { background: #172033; border-color: #334155; }
     .tab-id { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tab-meta { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; }
-    .task { border: 1px solid #1f2a44; border-radius: 6px; padding: 8px; margin-bottom: 6px; background: #0d1424; }
+    .task { border: 1px solid #1f2a44; border-radius: 6px; padding: 8px; margin-bottom: 6px; background: #0d1424; cursor: pointer; }
     .task-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
     .task-meta { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task-actions { display: flex; gap: 6px; margin-top: 7px; }
     .task.ready { border-color: #166534; }
     .task.stale { border-color: #7f1d1d; }
     .task.expired, .task.exited { border-color: #854d0e; }
     .task.orphan { border-style: dashed; }
-    #main { min-width: 0; display: grid; grid-template-rows: 46px 88px 1fr; }
+    #main { min-width: 0; display: grid; grid-template-rows: 46px 96px 1fr 170px; }
     #topbar { border-bottom: 1px solid #1f2a44; display: flex; align-items: center; gap: 14px; padding: 0 14px; min-width: 0; }
     #title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #status { color: #94a3b8; white-space: nowrap; }
@@ -44,6 +47,11 @@ export const webHtml = `<!doctype html>
     .action:hover { background: #1e293b; }
     #terminal-wrap { min-height: 0; padding: 8px; }
     #terminal { width: 100%; height: 100%; }
+    #panel { border-top: 1px solid #1f2a44; min-height: 0; display: grid; grid-template-rows: 34px 1fr; }
+    #panel-title { padding: 9px 14px; color: #94a3b8; font-size: 12px; font-weight: 700; }
+    #panel-body { overflow: auto; padding: 0 14px 12px; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; }
+    .hit { border-top: 1px solid #1f2a44; padding: 7px 0; cursor: pointer; }
+    .hit:hover { color: #e2e8f0; }
   </style>
 </head>
 <body>
@@ -55,6 +63,7 @@ export const webHtml = `<!doctype html>
         <button class="filter" data-filter="active">Active</button>
         <button class="filter" data-filter="needs-attention">Attention</button>
       </div>
+      <div id="searchbar"><input id="search-input" type="search" placeholder="Search sessions and tasks" /><button class="action" id="search-button" type="button">Search</button></div>
       <div class="section-title">Sessions</div>
       <div id="sessions"></div>
       <div class="section-title">Tasks</div>
@@ -67,6 +76,7 @@ export const webHtml = `<!doctype html>
         <div id="detail"><span id="detail-text">No selection</span></div>
       </div>
       <div id="terminal-wrap"><div id="terminal"></div></div>
+      <div id="panel"><div id="panel-title">Activity</div><div id="panel-body">No logs or search results</div></div>
     </main>
   </div>
   <script type="module" src="/app.js"></script>
@@ -84,6 +94,10 @@ const detailTextEl = document.querySelector('#detail-text');
 const filtersEl = document.querySelector('#filters');
 const status = document.querySelector('#status');
 const title = document.querySelector('#title');
+const searchInput = document.querySelector('#search-input');
+const searchButton = document.querySelector('#search-button');
+const panelTitle = document.querySelector('#panel-title');
+const panelBody = document.querySelector('#panel-body');
 const utf8 = new TextDecoder();
 const fit = new FitAddon();
 const term = new Terminal({ convertEol: true, cursorBlink: false, disableStdin: true });
@@ -100,9 +114,14 @@ let currentFilter = 'all';
 let lastSeq = 0;
 let reconnectTimer;
 let refreshTimer;
+let refreshSoonTimer;
+let refreshInFlight = false;
 let resizeTimer;
 
 async function refreshSessions() {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  try {
   const [sessionsRes, tasksRes] = await Promise.all([fetch('/api/sessions'), fetch('/api/tasks')]);
   sessions = await sessionsRes.json();
   const dashboard = await tasksRes.json();
@@ -113,6 +132,9 @@ async function refreshSessions() {
   renderMetrics();
   if (!currentSession && sessions.length > 0) openSession(sessions[0].id);
   if (currentSession && !sessions.some((s) => s.id === currentSession)) closeSession();
+  } finally {
+    refreshInFlight = false;
+  }
 }
 
 function renderTabs() {
@@ -147,13 +169,18 @@ function renderTasks() {
     return true;
   });
   tasksEl.replaceChildren(...rows.map((t) => {
-    const item = document.createElement('button');
+    const item = document.createElement('div');
     item.className = 'task' + (t.ready ? ' ready' : '') + (t.stale ? ' stale' : '') + (t.expired ? ' expired' : '') + (t.processExited ? ' exited' : '') + (t.orphan ? ' orphan' : '');
-    item.type = 'button';
-    item.innerHTML = '<span class="task-name"></span><span class="task-meta"></span>';
+    item.innerHTML = '<span class="task-name"></span><span class="task-meta"></span><div class="task-actions"></div>';
     item.querySelector('.task-name').textContent = t.name;
     item.querySelector('.task-meta').textContent = taskState(t) + ' ' + (t.readyDetail || t.failureReason || '');
     item.addEventListener('click', () => openSession(t.session));
+    const actions = item.querySelector('.task-actions');
+    actions.append(actionButton('Logs', () => showTaskLogs(t.name)));
+    if (!t.orphan) {
+      actions.append(actionButton('Recover', () => taskAction(t.name, 'recover')));
+      actions.append(actionButton('Stop', () => taskAction(t.name, 'stop')));
+    }
     return item;
   }));
   if (rows.length === 0) tasksEl.textContent = 'No tasks';
@@ -198,6 +225,13 @@ async function pruneTasks() {
   status.textContent = 'pruning tasks';
   await fetch('/api/tasks/prune', { method: 'POST' });
   await refreshSessions();
+}
+
+async function showTaskLogs(name) {
+  panelTitle.textContent = 'Logs: ' + name;
+  panelBody.textContent = 'Loading...';
+  const data = await fetch('/api/tasks/' + encodeURIComponent(name) + '/logs?lines=160').then((r) => r.json());
+  panelBody.textContent = data.logText || data.output || JSON.stringify(data, null, 2);
 }
 
 function taskState(t) {
@@ -261,11 +295,38 @@ function handleEventMessage(msg) {
 }
 
 function refreshSessionsSoon() {
-  clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => {
+  clearTimeout(refreshSoonTimer);
+  refreshSoonTimer = setTimeout(() => {
     void refreshSessions();
-    refreshTimer = setInterval(refreshSessions, 1000);
   }, 100);
+}
+
+async function runSearch() {
+  const q = searchInput.value.trim();
+  if (!q) {
+    panelTitle.textContent = 'Activity';
+    panelBody.textContent = 'No logs or search results';
+    return;
+  }
+  panelTitle.textContent = 'Search: ' + q;
+  panelBody.textContent = 'Searching...';
+  const data = await fetch('/api/search?q=' + encodeURIComponent(q) + '&limit=80&context=1').then((r) => r.json());
+  renderSearchResults(data);
+}
+
+function renderSearchResults(data) {
+  panelBody.replaceChildren(...(data.hits || []).map((hit) => {
+    const row = document.createElement('div');
+    row.className = 'hit';
+    const target = hit.session || hit.task || hit.source;
+    const loc = hit.seq !== undefined ? 'seq=' + hit.seq : 'line=' + hit.line;
+    row.textContent = hit.kind + ' ' + target + ' ' + loc + '\\n' + hit.text;
+    row.addEventListener('click', () => {
+      if (hit.session) openSession(hit.session);
+    });
+    return row;
+  }));
+  if (!data.hits || data.hits.length === 0) panelBody.textContent = 'No matches';
 }
 
 filtersEl.addEventListener('click', (event) => {
@@ -275,6 +336,11 @@ filtersEl.addEventListener('click', (event) => {
   filtersEl.querySelectorAll('.filter').forEach((el) => el.classList.toggle('active', el === button));
   renderTabs();
   renderTasks();
+});
+
+searchButton.addEventListener('click', () => { void runSearch(); });
+searchInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') void runSearch();
 });
 
 function sendResize() {
