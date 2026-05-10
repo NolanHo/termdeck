@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TermSession } from '../src/session.js';
 import { lastCommand } from '../src/commands.js';
-import { setSensitiveSession } from '../src/sensitive.js';
 
 test('session writes metadata state command and interaction logs', async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'termdeck-meta-'));
@@ -59,11 +58,10 @@ test('run markers return command output and exit code without logging wrapper', 
   }
 });
 
-test('sensitive sessions redact returned text and last command', async () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'termdeck-sensitive-'));
-  const s = new TermSession({ id: `sensitive-${process.pid}`, cwd, rows: 24, cols: 80, shell: 'bash', promptRegex: '.*[$#>]\\s*$' });
+test('agent-facing text redacts returned text and last command by default', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'termdeck-redact-'));
+  const s = new TermSession({ id: `redact-${process.pid}`, cwd, rows: 24, cols: 80, shell: 'bash', promptRegex: '.*[$#>]\\s*$' });
   try {
-    setSensitiveSession(s.id, true);
     const r = await s.run('printf "api_key=secret-value"', 3_000, 100);
     assert.doesNotMatch(r.output, /secret-value/);
     assert.match(r.output, /\[REDACTED\]/);

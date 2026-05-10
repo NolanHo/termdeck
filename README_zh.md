@@ -136,7 +136,6 @@ termdeck signal <session> <signal> [--timeout-ms N] [--quiescence-ms N]
 termdeck state <session> [--lines N] [--autostart]
 termdeck summary <session> [--lines N] [--events N] [--autostart]
 termdeck last-command <session>
-termdeck sensitive <session> --on|--off
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -153,7 +152,7 @@ termdeck clear-scrollback <session>
 
 `run` 会在 shell 内加入 begin/exit marker，以便从终端回显中稳定切出命令输出并返回 `exitCode`。命令仍在持久 shell 中执行，所以 `cd`、环境变量和 shell 函数等状态会保留。
 
-`last-command` 返回结构化 command id、命令、seq 范围、duration、exit code、timeout 和 output tail。`sensitive` 模式会对返回文本、log/events/summary 和 Web 输出做 redaction，并隐藏 Web snapshot；原始 transcript 仍是本地磁盘 artifact，需要继续按敏感数据处理。
+`last-command` 返回结构化 command id、命令、seq 范围、duration、exit code、timeout 和 output tail。面向 agent 的文本视图默认会对常见 secret 形态做 redaction，包括返回输出、log/events/summary 和 last-command；Web snapshot 与 WebSocket 输出仍保持可见，因为 Web 是本地人类观察面。原始 transcript 仍是本地磁盘 artifact，需要继续按敏感数据处理。
 
 后台任务支持 `--owner`、`--labels`、`--ttl-ms`、`--restart-policy`、`--max-restarts`、`--backoff-ms`、`task dashboard`、`task prune` 和 `task recover`。状态会区分 stale metadata、TTL 过期、进程已退出、restart count 和 orphan `task-*` session。Web UI 会展示 task dashboard，并提供 active/attention 过滤以及 stop/recover/prune 安全控制，但仍不向 PTY 发送输入。
 

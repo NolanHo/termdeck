@@ -10,7 +10,6 @@ import { redactText } from './redact.js';
 import { TextRing } from './ring.js';
 import { detectState, type StateResult } from './state.js';
 import type { Event, PromptKind, Status } from './protocol.js';
-import { isSensitiveSession } from './sensitive.js';
 import { sessionDir } from './paths.js';
 
 const { Terminal } = xtermHeadless;
@@ -189,7 +188,6 @@ export class TermSession extends EventEmitter {
       promptRegex: this.promptRegex,
       description: this.description,
       startedAt: this.startedAt,
-      sensitive: this.isSensitive(),
       exited: this.exited,
       exitCode: this.lastExitCode,
       exitSignal: this.lastExitSignal,
@@ -282,12 +280,8 @@ printf '\n__TERMDECK_BEGIN:%s__\n' '${delimiter}'; ${shell} /tmp/${delimiter}.sh
     return this.transcriptPath;
   }
 
-  isSensitive(): boolean {
-    return isSensitiveSession(this.id);
-  }
-
   redact(text: string): string {
-    return this.isSensitive() ? redactText(text) : text;
+    return redactText(text);
   }
 
   resize(rows: number, cols: number): void {
@@ -322,7 +316,6 @@ printf '\n__TERMDECK_BEGIN:%s__\n' '${delimiter}'; ${shell} /tmp/${delimiter}.sh
   }
 
   snapshot(scrollback = 1_000): string {
-    if (this.isSensitive()) return 'Sensitive session: terminal snapshot is hidden. Use redacted log, screen, summary, or last-command views.';
     return this.serializer.serialize({ scrollback });
   }
 

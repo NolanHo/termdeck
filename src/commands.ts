@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { redactValue } from './redact.js';
-import { isSensitiveSession } from './sensitive.js';
 import { sessionDir } from './paths.js';
 
 export type LastCommand = {
@@ -32,5 +31,5 @@ export function lastCommand(session: string): LastCommand | undefined {
   }
   const last = [...byId.values()].filter((row): row is LastCommand => typeof row.data === 'string' && typeof row.tsMs === 'number').at(-1);
   if (!last) return undefined;
-  return isSensitiveSession(session) ? redactValue(last) as LastCommand : last;
+  return redactValue(last) as LastCommand;
 }

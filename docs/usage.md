@@ -109,13 +109,7 @@ Read the last structured command record:
 termdeck last-command main --json
 ```
 
-Enable sensitive mode when returned views may contain secrets:
-
-```bash
-termdeck sensitive main --on
-```
-
-Sensitive mode redacts returned command output, screen/log/events/summary views, and web output. It also hides the web snapshot for that session. The raw local transcript remains an artifact on disk, so keep `TERMDECK_HOME` permissions tight and avoid entering secrets unless necessary.
+Agent-facing text views redact common secret-shaped values by default, including returned command output, screen/log/events/summary views, and last-command records. The web snapshot remains visible because it is a local human observer surface. The raw local transcript remains an artifact on disk, so keep `TERMDECK_HOME` permissions tight and avoid entering secrets unless necessary.
 
 Use `--raw` when a command path needs the original PTY bytes, including ANSI color/control sequences:
 

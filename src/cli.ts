@@ -3,7 +3,6 @@ import { Command } from 'commander';
 import { ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
 import { lastCommand } from './commands.js';
 import { projectSessionName } from './project.js';
-import { setSensitiveSession } from './sensitive.js';
 import { sessionSummary } from './summary.js';
 import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { Response } from './protocol.js';
@@ -143,16 +142,6 @@ program.command('last-command')
   .argument('<session>')
   .option('--json')
   .action(async (session, opts) => printObject({ command: lastCommand(session) }, opts.json));
-
-program.command('sensitive')
-  .argument('<session>')
-  .option('--on', 'enable sensitive mode')
-  .option('--off', 'disable sensitive mode')
-  .option('--json')
-  .action(async (session, opts) => {
-    if (Boolean(opts.on) === Boolean(opts.off)) throw new Error('pass exactly one of --on or --off');
-    printObject(setSensitiveSession(session, Boolean(opts.on)), opts.json);
-  });
 
 program.command('step')
   .argument('<session>')
