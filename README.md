@@ -180,15 +180,16 @@ termdeck prune [--cwd <path>] [--name <text>] [--status STATUS]
 
 `termdeck-mcp` exposes the same TermDeck capability surface as the CLI over stdio MCP. CLI, MCP, and the web UI are peer access surfaces; `termdeckd` remains the owner of PTYs, sessions, transcripts, and web observation.
 
-Register the server with the same environment you want the daemon to use:
+Register the server directly. When no environment is provided, CLI and MCP discover an existing daemon by checking the system socket at `/var/lib/termdeck/termdeckd.sock` before falling back to `~/.termdeck/termdeckd.sock`. Agents do not need to choose a backend.
 
 ```toml
 [mcp_servers.termdeck]
 command = "termdeck-mcp"
-env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
 ```
 
-The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `termdeckd`, create a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`. `project_step` goes one level higher by deriving a stable session id from `cwd` and an optional label.
+Set `TERMDECK_HOME` or `TERMDECK_SOCKET` only when you intentionally want project-isolated state or a non-default daemon.
+
+The MCP `step` tool is the agent-friendly default entrypoint. It discovers or autostarts `termdeckd` by default, creates a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`. `project_step` goes one level higher by deriving a stable session id from `cwd` and an optional label.
 
 `summary` returns a compact inspection object with a screen tail, output tail, recent events, and likely error lines. `last_command` returns structured command id, command text, seq bounds, duration, exit code, timeout flag, and output tail. Use these when an agent needs state without replaying a large transcript.
 
@@ -211,7 +212,7 @@ Environment variables:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `TERMDECK_HOME` | `~/.termdeck` | Runtime state root |
+| `TERMDECK_HOME` | discovered daemon, then `~/.termdeck` | Runtime state root |
 | `TERMDECK_SOCKET` | `$TERMDECK_HOME/termdeckd.sock` | Unix socket path |
 | `TERMDECK_WEB_PORT` | unset | Starts web UI on `127.0.0.1:<port>` |
 

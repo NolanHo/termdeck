@@ -335,10 +335,9 @@ Restart policies are `never`, `on-exit`, and `on-failure`. Automatic restarts ho
 ```toml
 [mcp_servers.termdeck]
 command = "termdeck-mcp"
-env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
 ```
 
-Use MCP `step` as the default low-level agent entrypoint. It supports autostart, missing-session creation via `cwd`, terminal operations equivalent to CLI `step --op`, and stable JSON results. Use MCP `project_step` when the caller wants TermDeck to derive the session id from `cwd`. CLI and MCP should remain capability-equivalent; add new public terminal operations to both surfaces and keep the parity test passing.
+By default, MCP uses the same daemon discovery path as the CLI: explicit `TERMDECK_SOCKET`, explicit `TERMDECK_HOME`, existing `/var/lib/termdeck/termdeckd.sock`, then `~/.termdeck/termdeckd.sock`. Set `TERMDECK_HOME` only for intentional project isolation. Use MCP `step` as the default low-level agent entrypoint. It autostarts the daemon by default, supports missing-session creation via `cwd`, terminal operations equivalent to CLI `step --op`, and stable JSON results. Use MCP `project_step` when the caller wants TermDeck to derive the session id from `cwd`. CLI and MCP should remain capability-equivalent; add new public terminal operations to both surfaces and keep the parity test passing.
 
 ## Session files
 

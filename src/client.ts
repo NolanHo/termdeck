@@ -3,7 +3,7 @@ import { mkdirSync, openSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { daemonLogPath, socketPath } from './paths.js';
+import { candidateSockets, daemonLogPath, setActiveTermDeckRoot, socketPath } from './paths.js';
 import { FrameReader, writeFrame, type Request, type RequestInput, type Response } from './protocol.js';
 
 let nextId = 1;
@@ -11,24 +11,38 @@ let nextId = 1;
 export function request(req: RequestInput): Promise<Response> {
   const id = nextId++;
   const full = { ...req, id } as Request;
+  const candidates = candidateSockets();
+  let index = 0;
   return new Promise((resolveRequest, reject) => {
-    const socket = connect(socketPath);
-    const cleanup = () => socket.end();
-    socket.on('connect', () => {
-      const reader = new FrameReader(socket);
-      reader.on('error', reject);
-      reader.on('frame', (frame) => {
-        if (frame.type !== 'response') return;
-        if (frame.payload.id !== id) return;
-        cleanup();
-        resolveRequest(frame.payload);
+    const errors: string[] = [];
+    const tryNext = () => {
+      const candidate = candidates[index++];
+      if (!candidate) {
+        reject(new Error(`termdeckd is not running at ${candidates.map((item) => item.socketPath).join(', ') || socketPath}${errors.length ? ` (${errors.join('; ')})` : ''}`));
+        return;
+      }
+      const socket = connect(candidate.socketPath);
+      const cleanup = () => socket.end();
+      socket.on('connect', () => {
+        setActiveTermDeckRoot(candidate.rootDir, candidate.socketPath);
+        const reader = new FrameReader(socket);
+        reader.on('error', reject);
+        reader.on('frame', (frame) => {
+          if (frame.type !== 'response') return;
+          if (frame.payload.id !== id) return;
+          cleanup();
+          resolveRequest(frame.payload);
+        });
+        writeFrame(socket, { type: 'request', payload: full });
       });
-      writeFrame(socket, { type: 'request', payload: full });
-    });
-    socket.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') reject(new Error(`termdeckd is not running at ${socketPath}`));
-      else reject(err);
-    });
+      socket.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
+          errors.push(`${candidate.socketPath}: ${err.code}`);
+          tryNext();
+        } else reject(err);
+      });
+    };
+    tryNext();
   });
 }
 

@@ -25,13 +25,13 @@ function responseResult(res: Response): CallToolResult {
 }
 
 async function call(req: RequestInput, autostart?: boolean): Promise<CallToolResult> {
-  return responseResult(await requestWithDaemon(req, autostart));
+  return responseResult(await requestWithDaemon(req, autostart ?? true));
 }
 
 type ToolArgs = Record<string, unknown>;
 
 function registerRequestTool(server: McpServer, name: string, description: string, inputSchema: Record<string, z.ZodType>, build: (args: ToolArgs) => RequestInput, opts: { autostartArg?: boolean } = {}): void {
-  server.registerTool(name, { description, inputSchema }, async (args) => call(build(args as ToolArgs), opts.autostartArg && 'autostart' in args ? Boolean(args.autostart) : false));
+  server.registerTool(name, { description, inputSchema }, async (args) => call(build(args as ToolArgs), opts.autostartArg && 'autostart' in args ? Boolean(args.autostart) : undefined));
 }
 
 function s(args: ToolArgs, key: string): string {
@@ -52,6 +52,10 @@ function on(args: ToolArgs, key: string): number | undefined {
 
 function ob(args: ToolArgs, key: string): boolean | undefined {
   return args[key] as boolean | undefined;
+}
+
+function mcpAutostart(value: boolean | undefined): boolean {
+  return value ?? true;
 }
 
 const autostart = z.boolean().optional().describe('Start termdeckd when it is not running.');
@@ -75,12 +79,12 @@ export function createServer(): McpServer {
   server.registerTool('list_sessions', {
     description: 'List TermDeck sessions with optional cwd/name/status filters.',
     inputSchema: { cwd: z.string().optional(), name: z.string().optional(), status: StatusSchema, autostart },
-  }, async (args) => responseResult(await listSessions(args)));
+  }, async (args) => responseResult(await listSessions({ ...args, autostart: mcpAutostart(args.autostart) })));
 
   server.registerTool('prune_sessions', {
     description: 'Kill sessions matching optional cwd/name/status filters.',
     inputSchema: { cwd: z.string().optional(), name: z.string().optional(), status: StatusSchema, autostart },
-  }, async (args) => result(await pruneSessions(args)));
+  }, async (args) => result(await pruneSessions({ ...args, autostart: mcpAutostart(args.autostart) })));
 
   registerRequestTool(server, 'new_session', 'Create a TermDeck session.', {
     session,
@@ -111,39 +115,40 @@ export function createServer(): McpServer {
       autostart,
     },
   }, async (args) => {
-    await ensureSession(args.session, { cwd: args.cwd, shell: args.shell, rows: args.rows, cols: args.cols, promptRegex: args.promptRegex, autostart: args.autostart, startupTimeoutMs: args.startupTimeoutMs });
+    const autostartDaemon = mcpAutostart(args.autostart);
+    await ensureSession(args.session, { cwd: args.cwd, shell: args.shell, rows: args.rows, cols: args.cols, promptRegex: args.promptRegex, autostart: autostartDaemon, startupTimeoutMs: args.startupTimeoutMs });
     const common = { session: args.session, timeoutMs: args.timeoutMs, quiescenceMs: args.quiescenceMs, stripAnsi: !args.raw };
     let res: Response;
     switch (args.op) {
       case 'run':
         if (!args.command) return result({ ok: false, error: 'step op run requires command' }, true);
-        res = await requestWithDaemon({ op: 'run', ...common, command: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'run', ...common, command: args.command }, autostartDaemon);
         break;
       case 'poll':
-        res = await requestWithDaemon({ op: 'poll', ...common }, args.autostart);
+        res = await requestWithDaemon({ op: 'poll', ...common }, autostartDaemon);
         break;
       case 'send':
         if (args.command === undefined) return result({ ok: false, error: 'step op send requires command/data' }, true);
-        res = await requestWithDaemon({ op: 'send', ...common, data: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'send', ...common, data: args.command }, autostartDaemon);
         break;
       case 'paste':
         if (args.command === undefined) return result({ ok: false, error: 'step op paste requires command/text' }, true);
-        res = await requestWithDaemon({ op: 'paste', ...common, data: args.command, enter: args.enter }, args.autostart);
+        res = await requestWithDaemon({ op: 'paste', ...common, data: args.command, enter: args.enter }, autostartDaemon);
         break;
       case 'ctrl':
         if (!args.command) return result({ ok: false, error: 'step op ctrl requires command/key' }, true);
-        res = await requestWithDaemon({ op: 'ctrl', ...common, key: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'ctrl', ...common, key: args.command }, autostartDaemon);
         break;
       case 'signal':
         if (!args.command) return result({ ok: false, error: 'step op signal requires command/signal' }, true);
-        res = await requestWithDaemon({ op: 'signal', ...common, signal: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'signal', ...common, signal: args.command }, autostartDaemon);
         break;
     }
     if (args.lines > 0) {
-      const screen = await requestWithDaemon({ op: 'screen', session: args.session }, args.autostart);
+      const screen = await requestWithDaemon({ op: 'screen', session: args.session }, autostartDaemon);
       res = stateSnapshot(res, screen, args.lines);
     }
-    return responseResult(await enrichedResponse(args.session, res, args.autostart));
+    return responseResult(await enrichedResponse(args.session, res, autostartDaemon));
   });
 
   server.registerTool('project_step', {
@@ -168,40 +173,41 @@ export function createServer(): McpServer {
   }, async (args) => {
     const cwd = args.cwd ?? process.cwd();
     const derivedSession = projectSessionName(cwd, args.name);
-    await ensureSession(derivedSession, { cwd, shell: args.shell, rows: args.rows, cols: args.cols, promptRegex: args.promptRegex, autostart: args.autostart, startupTimeoutMs: args.startupTimeoutMs });
+    const autostartDaemon = mcpAutostart(args.autostart);
+    await ensureSession(derivedSession, { cwd, shell: args.shell, rows: args.rows, cols: args.cols, promptRegex: args.promptRegex, autostart: autostartDaemon, startupTimeoutMs: args.startupTimeoutMs });
     const common = { session: derivedSession, timeoutMs: args.timeoutMs, quiescenceMs: args.quiescenceMs, stripAnsi: !args.raw };
     let res: Response;
     switch (args.op) {
       case 'run':
         if (!args.command) return result({ ok: false, error: 'project_step op run requires command' }, true);
-        res = await requestWithDaemon({ op: 'run', ...common, command: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'run', ...common, command: args.command }, autostartDaemon);
         break;
       case 'poll':
-        res = await requestWithDaemon({ op: 'poll', ...common }, args.autostart);
+        res = await requestWithDaemon({ op: 'poll', ...common }, autostartDaemon);
         break;
       case 'send':
         if (args.command === undefined) return result({ ok: false, error: 'project_step op send requires command/data' }, true);
-        res = await requestWithDaemon({ op: 'send', ...common, data: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'send', ...common, data: args.command }, autostartDaemon);
         break;
       case 'paste':
         if (args.command === undefined) return result({ ok: false, error: 'project_step op paste requires command/text' }, true);
-        res = await requestWithDaemon({ op: 'paste', ...common, data: args.command, enter: args.enter }, args.autostart);
+        res = await requestWithDaemon({ op: 'paste', ...common, data: args.command, enter: args.enter }, autostartDaemon);
         break;
       case 'ctrl':
         if (!args.command) return result({ ok: false, error: 'project_step op ctrl requires command/key' }, true);
-        res = await requestWithDaemon({ op: 'ctrl', ...common, key: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'ctrl', ...common, key: args.command }, autostartDaemon);
         break;
       case 'signal':
         if (!args.command) return result({ ok: false, error: 'project_step op signal requires command/signal' }, true);
-        res = await requestWithDaemon({ op: 'signal', ...common, signal: args.command }, args.autostart);
+        res = await requestWithDaemon({ op: 'signal', ...common, signal: args.command }, autostartDaemon);
         break;
     }
     res = { ...res, metadata: { ...(res.metadata ?? {}), session: derivedSession, cwd } };
     if (args.lines > 0) {
-      const screen = await requestWithDaemon({ op: 'screen', session: derivedSession }, args.autostart);
+      const screen = await requestWithDaemon({ op: 'screen', session: derivedSession }, autostartDaemon);
       res = stateSnapshot(res, screen, args.lines);
     }
-    return responseResult(await enrichedResponse(derivedSession, res, args.autostart));
+    return responseResult(await enrichedResponse(derivedSession, res, autostartDaemon));
   });
 
   registerRequestTool(server, 'run', 'Run a command in an existing TermDeck session.', { ...runLike, command: z.string(), autostart }, (args) => ({ op: 'run', session: s(args, 'session'), command: s(args, 'command'), timeoutMs: on(args, 'timeoutMs'), quiescenceMs: on(args, 'quiescenceMs'), stripAnsi: !ob(args, 'raw') }), { autostartArg: true });
@@ -221,15 +227,16 @@ export function createServer(): McpServer {
     description: 'Return session metadata and rendered screen tail.',
     inputSchema: { session, lines: z.number().int().nonnegative().optional().default(12), autostart },
   }, async (args) => {
-    const meta = await requestWithDaemon({ op: 'metadata', session: args.session }, args.autostart);
+    const autostartDaemon = mcpAutostart(args.autostart);
+    const meta = await requestWithDaemon({ op: 'metadata', session: args.session }, autostartDaemon);
     if (!meta.ok) return responseResult(meta);
-    const screen = await requestWithDaemon({ op: 'screen', session: args.session }, args.autostart);
+    const screen = await requestWithDaemon({ op: 'screen', session: args.session }, autostartDaemon);
     return responseResult(stateSnapshot(meta, screen, args.lines));
   });
   server.registerTool('summary', {
     description: 'Return a compact agent-oriented session summary with screen tail, output tail, recent events, and likely error lines.',
     inputSchema: { session, lines: z.number().int().positive().optional().default(80), events: z.number().int().positive().optional().default(20), autostart },
-  }, async (args) => responseResult(await sessionSummary({ session: args.session, lines: args.lines, events: args.events, autostart: args.autostart })));
+  }, async (args) => responseResult(await sessionSummary({ session: args.session, lines: args.lines, events: args.events, autostart: mcpAutostart(args.autostart) })));
   server.registerTool('last_command', {
     description: 'Return the last structured command record for a session.',
     inputSchema: { session },
@@ -294,27 +301,27 @@ export function createServer(): McpServer {
       promptRegex: z.string().optional(),
       autostart,
     },
-  }, async (args) => result(await taskStart(args)));
+  }, async (args) => result(await taskStart({ ...args, autostart: mcpAutostart(args.autostart) })));
 
   server.registerTool('task_status', {
     description: 'Check status and readiness for a background task.',
     inputSchema: { name: z.string(), timeoutMs, autostart },
-  }, async (args) => result(await taskStatus(args.name, { timeoutMs: args.timeoutMs, autostart: args.autostart })));
+  }, async (args) => result(await taskStatus(args.name, { timeoutMs: args.timeoutMs, autostart: mcpAutostart(args.autostart) })));
 
   server.registerTool('task_recover', {
     description: 'Recover a stale task by recreating its TermDeck session from persisted task metadata and rerunning its command.',
     inputSchema: { name: z.string(), timeoutMs, readyTimeoutMs: z.number().int().positive().optional(), quiescenceMs, autostart },
-  }, async (args) => result(await taskRecover(args.name, { timeoutMs: args.timeoutMs, readyTimeoutMs: args.readyTimeoutMs, quiescenceMs: args.quiescenceMs, autostart: args.autostart })));
+  }, async (args) => result(await taskRecover(args.name, { timeoutMs: args.timeoutMs, readyTimeoutMs: args.readyTimeoutMs, quiescenceMs: args.quiescenceMs, autostart: mcpAutostart(args.autostart) })));
 
   server.registerTool('task_logs', {
     description: 'Read background task transcript logs.',
     inputSchema: { name: z.string(), lines: z.number().int().positive().optional().default(200), autostart },
-  }, async (args) => responseResult(await taskLogs(args.name, args.lines, args.autostart)));
+  }, async (args) => responseResult(await taskLogs(args.name, args.lines, mcpAutostart(args.autostart))));
 
   server.registerTool('task_stop', {
     description: 'Stop a background task and remove its task metadata.',
     inputSchema: { name: z.string(), autostart },
-  }, async (args) => result(await taskStop(args.name, args.autostart)));
+  }, async (args) => result(await taskStop(args.name, mcpAutostart(args.autostart))));
 
   server.registerTool('task_list', {
     description: 'List known background task metadata.',
@@ -324,12 +331,12 @@ export function createServer(): McpServer {
   server.registerTool('task_dashboard', {
     description: 'Return task statuses plus orphan task sessions that have no task metadata.',
     inputSchema: { timeoutMs, autostart },
-  }, async (args) => result(await taskDashboard({ timeoutMs: args.timeoutMs, autostart: args.autostart })));
+  }, async (args) => result(await taskDashboard({ timeoutMs: args.timeoutMs, autostart: mcpAutostart(args.autostart) })));
 
   server.registerTool('task_prune', {
     description: 'Remove stale and/or expired task metadata.',
     inputSchema: { stale: z.boolean().optional(), expired: z.boolean().optional(), dryRun: z.boolean().optional(), autostart },
-  }, async (args) => result(await taskPrune({ stale: args.stale, expired: args.expired, dryRun: args.dryRun, autostart: args.autostart })));
+  }, async (args) => result(await taskPrune({ stale: args.stale, expired: args.expired, dryRun: args.dryRun, autostart: mcpAutostart(args.autostart) })));
 
   return server;
 }
