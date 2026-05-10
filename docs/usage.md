@@ -8,6 +8,7 @@ TermDeck has three surfaces:
 
 - `termdeckd`: daemon that owns PTY sessions and session files
 - `termdeck`: CLI that sends protobuf requests to the daemon over a Unix socket
+- `termdeck-mcp`: stdio MCP server that exposes the same daemon-backed capability surface as the CLI
 - Web UI: observe-only browser view for terminal output
 
 The daemon must be running before CLI commands work. Sessions keep running after the CLI process exits.
@@ -239,6 +240,14 @@ List persisted sessions:
 termdeck history
 ```
 
+Filter live sessions before cleanup:
+
+```bash
+termdeck list --cwd "$PWD"
+termdeck list --name build --status ready
+termdeck prune --cwd "$PWD" --status eof
+```
+
 Inspect one session's metadata:
 
 ```bash
@@ -268,6 +277,31 @@ Print the raw transcript path:
 ```bash
 termdeck transcript main
 ```
+
+## Background tasks
+
+Task helpers are named TermDeck sessions with small readiness metadata. They do not bypass the daemon or create a separate terminal runner.
+
+```bash
+termdeck task start web 'pnpm dev --host 127.0.0.1' --cwd "$PWD" --ready-port 5173 --autostart
+termdeck task status web
+termdeck task logs web --lines 100
+termdeck task stop web
+```
+
+Readiness can be detected with `--ready-url`, `--ready-port`, or `--expect`. This is preferred for dev servers because output quiescence alone does not prove the server is ready.
+
+## MCP
+
+`termdeck-mcp` is the MCP access surface for the same daemon-owned capabilities exposed by `termdeck`.
+
+```toml
+[mcp_servers.termdeck]
+command = "termdeck-mcp"
+env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
+```
+
+Use MCP `step` as the default agent entrypoint. It supports autostart, missing-session creation via `cwd`, terminal operations equivalent to CLI `step --op`, and stable JSON results. CLI and MCP should remain capability-equivalent; add new public terminal operations to both surfaces.
 
 ## Session files
 

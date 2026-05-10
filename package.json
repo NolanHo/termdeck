@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "termdeck": "./bin/termdeck.js",
-    "termdeckd": "./bin/termdeckd.js"
+    "termdeckd": "./bin/termdeckd.js",
+    "termdeck-mcp": "./bin/termdeck-mcp.js"
   },
   "scripts": {
     "gen": "buf generate",
@@ -31,13 +32,15 @@
   ],
   "dependencies": {
     "@bufbuild/protobuf": "^2.11.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^5.5.0",
     "@xterm/xterm": "^6.0.0",
     "commander": "^14.0.2",
     "node-pty": "^1.0.0",
-    "strip-ansi": "^7.2.0"
+    "strip-ansi": "^7.2.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.69.0",

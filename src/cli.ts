@@ -1,92 +1,8 @@
-import { spawn } from 'node:child_process';
-import { mkdirSync, openSync, readFileSync } from 'node:fs';
-import { connect } from 'node:net';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
-import { FrameReader, writeFrame, type Request, type RequestInput, type Response } from './protocol.js';
-import { daemonLogPath, socketPath } from './paths.js';
-
-let nextId = 1;
-
-function request(req: RequestInput): Promise<Response> {
-  const id = nextId++;
-  const full = { ...req, id } as Request;
-  return new Promise((resolve, reject) => {
-    const socket = connect(socketPath);
-    const cleanup = () => socket.end();
-    socket.on('connect', () => {
-      const reader = new FrameReader(socket);
-      reader.on('error', reject);
-      reader.on('frame', (frame) => {
-        if (frame.type !== 'response') return;
-        if (frame.payload.id !== id) return;
-        cleanup();
-        resolve(frame.payload);
-      });
-      writeFrame(socket, { type: 'request', payload: full });
-    });
-    socket.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') reject(new Error(`termdeckd is not running at ${socketPath}`));
-      else reject(err);
-    });
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}
-
-function isDaemonMissing(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('termdeckd is not running');
-}
-
-async function requestWithDaemon(req: RequestInput, autostart = false): Promise<Response> {
-  try {
-    return await request(req);
-  } catch (err) {
-    if (!autostart || !isDaemonMissing(err)) throw err;
-    await startDaemon();
-    return request(req);
-  }
-}
-
-async function startDaemon(): Promise<void> {
-  mkdirSync(dirname(socketPath), { recursive: true, mode: 0o700 });
-  mkdirSync(dirname(daemonLogPath), { recursive: true, mode: 0o700 });
-  const cliFile = fileURLToPath(import.meta.url);
-  const cliDir = dirname(cliFile);
-  const isSourceRun = cliFile.endsWith('.ts');
-  const logFd = openSync(daemonLogPath, 'a');
-  const child = spawn(isSourceRun ? 'tsx' : process.execPath, [resolve(cliDir, isSourceRun ? 'daemon.ts' : 'daemon.js')], {
-    detached: true,
-    stdio: ['ignore', logFd, logFd],
-  });
-  child.unref();
-  for (let i = 0; i < 50; i++) {
-    try {
-      await request({ op: 'list' });
-      return;
-    } catch {
-      await sleep(100);
-    }
-  }
-  throw new Error(`termdeckd did not become ready at ${socketPath}; check ${daemonLogPath}`);
-}
-
-async function ensureSession(session: string, opts: { cwd?: string; shell?: string; rows?: number; cols?: number; promptRegex?: string; autostart?: boolean; startupTimeoutMs?: number }): Promise<void> {
-  const list = await requestWithDaemon({ op: 'list' }, opts.autostart);
-  if (list.sessions?.some((s) => s.id === session)) return;
-  if (!opts.cwd) throw new Error(`unknown session: ${session}; pass --cwd to create it`);
-  const res = await requestWithDaemon({ op: 'new', session, cwd: opts.cwd, shell: opts.shell, rows: opts.rows, cols: opts.cols, promptRegex: opts.promptRegex }, opts.autostart);
-  if (!res.ok) throw new Error(res.error ?? `failed to create session: ${session}`);
-  await requestWithDaemon({ op: 'expectPrompt', session, timeoutMs: opts.startupTimeoutMs ?? 5_000, stripAnsi: true }, opts.autostart);
-}
-
-function tailLines(text: string, lines: number): string {
-  if (!lines || lines <= 0) return '';
-  return text.split(/\r?\n/).slice(-lines).join('\n').replace(/\n+$/, '');
-}
+import { ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
+import { listSessions, listTasks, pruneSessions, taskLogs, taskStart, taskStatus, taskStop } from './tasks.js';
+import type { Response } from './protocol.js';
 
 function stateSummary(res: Response): string {
   const parts = [`status=${res.status ?? 'unknown'}`];
@@ -120,18 +36,6 @@ function printStep(res: Response, mode: 'default' | 'json'): void {
   process.stdout.write(`\n[termdeck] ${stateSummary(res)}\n`);
 }
 
-function stateSnapshot(status: Response, screen: Response, lines: number): Response {
-  const screenTail = tailLines(screen.screen ?? '', lines);
-  return {
-    ...status,
-    screen: screenTail || undefined,
-    metadata: {
-      ...(status.metadata ?? {}),
-      screenTail,
-    },
-  };
-}
-
 function printResponse(res: Response, mode: 'default' | 'raw' | 'json' = 'default'): void {
   if (!res.ok) {
     console.error(res.error ?? 'request failed');
@@ -161,6 +65,11 @@ function printResponse(res: Response, mode: 'default' | 'raw' | 'json' = 'defaul
   } else if (res.status) {
     console.log(res.status);
   }
+}
+
+function printObject(obj: unknown, json = false): void {
+  if (json) process.stdout.write(`${JSON.stringify(obj, null, 2)}\n`);
+  else process.stdout.write(`${JSON.stringify(obj, null, 2)}\n`);
 }
 
 async function readSecret(): Promise<string> {
@@ -354,7 +263,20 @@ program.command('scrollback')
   .action(async (session, opts) => printResponse(await request({ op: 'scrollback', session, lines: opts.lines })));
 
 program.command('list')
-  .action(async () => printResponse(await request({ op: 'list' })));
+  .option('--cwd <path>', 'filter by exact cwd')
+  .option('--name <name>', 'filter session ids containing name')
+  .option('--status <status>', 'filter by status')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (opts) => printResponse(await listSessions({ cwd: opts.cwd, name: opts.name, status: opts.status, autostart: opts.autostart }), opts.json ? 'json' : 'default'));
+
+program.command('prune')
+  .option('--cwd <path>', 'filter by exact cwd')
+  .option('--name <name>', 'filter session ids containing name')
+  .option('--status <status>', 'filter by status')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (opts) => printObject(await pruneSessions({ cwd: opts.cwd, name: opts.name, status: opts.status, autostart: opts.autostart }), opts.json));
 
 program.command('configure')
   .argument('<session>')
@@ -438,6 +360,67 @@ program.command('signal')
 program.command('kill')
   .argument('<session>')
   .action(async (session) => printResponse(await request({ op: 'kill', session })));
+
+const task = program.command('task').description('background task helpers backed by TermDeck sessions');
+
+task.command('start')
+  .argument('<name>')
+  .argument('<command>')
+  .requiredOption('--cwd <path>')
+  .option('--ready-url <url>')
+  .option('--ready-port <port>', 'localhost port readiness probe', (v) => Number(v))
+  .option('--expect <pattern>')
+  .option('--timeout-ms <ms>', 'initial command wait timeout', (v) => Number(v))
+  .option('--ready-timeout-ms <ms>', 'ready probe timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--shell <shell>')
+  .option('--rows <rows>', 'terminal rows', (v) => Number(v))
+  .option('--cols <cols>', 'terminal cols', (v) => Number(v))
+  .option('--prompt-regex <regex>')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (name, command, opts) => {
+    printObject(await taskStart({
+      name,
+      command,
+      cwd: opts.cwd,
+      readyUrl: opts.readyUrl,
+      readyPort: opts.readyPort,
+      expect: opts.expect,
+      timeoutMs: opts.timeoutMs,
+      readyTimeoutMs: opts.readyTimeoutMs,
+      quiescenceMs: opts.quiescenceMs,
+      shell: opts.shell,
+      rows: opts.rows,
+      cols: opts.cols,
+      promptRegex: opts.promptRegex,
+      autostart: opts.autostart,
+    }), opts.json);
+  });
+
+task.command('status')
+  .argument('<name>')
+  .option('--timeout-ms <ms>', 'ready probe timeout', (v) => Number(v))
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (name, opts) => printObject(await taskStatus(name, { timeoutMs: opts.timeoutMs, autostart: opts.autostart }), opts.json));
+
+task.command('logs')
+  .argument('<name>')
+  .option('--lines <lines>', 'line count', (v) => Number(v), 200)
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (name, opts) => printResponse(await taskLogs(name, opts.lines, opts.autostart), opts.json ? 'json' : 'default'));
+
+task.command('list')
+  .option('--json')
+  .action(async (opts) => printObject({ tasks: listTasks() }, opts.json));
+
+task.command('stop')
+  .argument('<name>')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (name, opts) => printObject(await taskStop(name, opts.autostart), opts.json));
 
 program.parseAsync().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));

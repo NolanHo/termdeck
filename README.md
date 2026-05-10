@@ -17,6 +17,7 @@ TermDeck targets agent workflows where the terminal must outlive one CLI invocat
 - Persistent PTY sessions via `node-pty`
 - Local daemon: `termdeckd`
 - CLI: `termdeck`
+- MCP server: `termdeck-mcp`
 - Length-prefixed protobuf CLI-to-daemon protocol over Unix socket
 - Server-side terminal buffer via `@xterm/headless`
 - Observe-only web UI with JSON REST control endpoints and binary protobuf WebSocket events
@@ -143,6 +144,37 @@ termdeck events <session> [--after-seq N] [--limit N]
 termdeck replay <session> [--lines N]
 termdeck clear-scrollback <session>
 ```
+
+Background task helpers:
+
+```bash
+termdeck task start <name> <command> --cwd <path> [--ready-url URL] [--ready-port N] [--expect PATTERN]
+termdeck task status <name>
+termdeck task logs <name> [--lines N]
+termdeck task list
+termdeck task stop <name>
+```
+
+Session cleanup:
+
+```bash
+termdeck list [--cwd <path>] [--name <text>] [--status ready|running|repl|password|confirm|editor|pager|eof|unknown]
+termdeck prune [--cwd <path>] [--name <text>] [--status STATUS]
+```
+
+## MCP server
+
+`termdeck-mcp` exposes the same TermDeck capability surface as the CLI over stdio MCP. CLI, MCP, and the web UI are peer access surfaces; `termdeckd` remains the owner of PTYs, sessions, transcripts, and web observation.
+
+Register the server with the same environment you want the daemon to use:
+
+```toml
+[mcp_servers.termdeck]
+command = "termdeck-mcp"
+env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
+```
+
+The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `termdeckd`, create a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`.
 
 `step` is the agent-friendly wrapper: it can create a missing session with `--cwd`, perform one action, and always finishes with a compact state line including `status`, `prompt`, `reason`, timeout, exit-code, and truncation flags. Use `--json` when a caller needs the full response object.
 
