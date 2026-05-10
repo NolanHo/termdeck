@@ -82,6 +82,8 @@ test('CLI and MCP expose equivalent public capability surface', async () => {
     ['recover', 'task_recover'],
     ['logs', 'task_logs'],
     ['list', 'task_list'],
+    ['dashboard', 'task_dashboard'],
+    ['prune', 'task_prune'],
     ['stop', 'task_stop'],
   ] as const;
   for (const [cli, tool] of taskPairs) {

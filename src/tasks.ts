@@ -10,18 +10,25 @@ export type TaskSpec = {
   session: string;
   command: string;
   cwd: string;
+  owner?: string;
+  labels?: string[];
+  ttlMs?: number;
   readyUrl?: string;
   readyPort?: number;
   expect?: string;
   startedAt: string;
   updatedAt?: string;
   recoveries?: number;
+  restartCount?: number;
 };
 
 export type TaskStartOptions = {
   name: string;
   command: string;
   cwd: string;
+  owner?: string;
+  labels?: string[];
+  ttlMs?: number;
   readyUrl?: string;
   readyPort?: number;
   expect?: string;
@@ -40,9 +47,16 @@ export type TaskStatus = {
   session: string;
   command: string;
   cwd: string;
+  owner?: string;
+  labels: string[];
+  ageMs: number;
+  ttlMs?: number;
+  expired: boolean;
   live: boolean;
   stale: boolean;
+  processExited: boolean;
   recovered?: boolean;
+  restartCount: number;
   ready: boolean;
   readyKind: 'url' | 'port' | 'expect' | 'status' | 'combined' | 'stale';
   readyDetail: string;
@@ -56,10 +70,22 @@ export type TaskStatus = {
   logTail?: string;
 };
 
+export type TaskDashboard = {
+  tasks: TaskStatus[];
+  orphanSessions: NonNullable<Response['sessions']>;
+};
+
 export type SessionFilter = {
   cwd?: string;
   name?: string;
   status?: Status;
+  autostart?: boolean;
+};
+
+export type TaskPruneOptions = {
+  stale?: boolean;
+  expired?: boolean;
+  dryRun?: boolean;
   autostart?: boolean;
 };
 
@@ -122,6 +148,14 @@ export async function listTaskStatuses(opts: { autostart?: boolean; timeoutMs?: 
   return statuses;
 }
 
+export async function taskDashboard(opts: { autostart?: boolean; timeoutMs?: number } = {}): Promise<TaskDashboard> {
+  const tasks = await listTaskStatuses(opts);
+  const taskSessions = new Set(listTasks().map((task) => task.session));
+  const live = await requestWithDaemon({ op: 'list' }, opts.autostart).catch(() => undefined);
+  const orphanSessions = (live?.sessions ?? []).filter((session) => session.id.startsWith('task-') && !taskSessions.has(session.id));
+  return { tasks, orphanSessions };
+}
+
 export async function listSessions(filter: SessionFilter = {}): Promise<Response> {
   const res = await requestWithDaemon({ op: 'list' }, filter.autostart);
   if (!res.ok || !res.sessions) return res;
@@ -153,11 +187,15 @@ export async function taskStart(opts: TaskStartOptions): Promise<TaskStatus & { 
     session,
     command: opts.command,
     cwd: opts.cwd,
+    owner: opts.owner,
+    labels: opts.labels ?? [],
+    ttlMs: opts.ttlMs,
     readyUrl: opts.readyUrl,
     readyPort: opts.readyPort,
     expect: opts.expect,
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    restartCount: 0,
   };
   await ensureSession(session, {
     cwd: opts.cwd,
@@ -184,19 +222,30 @@ export async function taskStatus(name: string, opts: { autostart?: boolean; time
   const spec = readTask(name);
   const meta = await requestWithDaemon({ op: 'metadata', session: spec.session }, opts.autostart);
   if (!meta.ok) return staleTaskStatus(spec, meta.error ?? 'task session is not live');
+  const lifecycle = lifecycleInfo(spec);
+  const processExited = meta.status === 'eof';
   const base = {
     name: spec.name,
     session: spec.session,
     command: spec.command,
     cwd: spec.cwd,
+    owner: spec.owner,
+    labels: spec.labels ?? [],
+    ageMs: lifecycle.ageMs,
+    ttlMs: spec.ttlMs,
+    expired: lifecycle.expired,
     live: true,
     stale: false,
+    processExited,
+    restartCount: spec.restartCount ?? spec.recoveries ?? 0,
     status: meta.status,
     prompt: meta.prompt,
     reason: meta.reason,
     lastSeq: meta.lastSeq,
     transcriptPath: typeof meta.metadata?.transcript === 'string' ? meta.metadata.transcript : undefined,
   };
+  if (lifecycle.expired) return { ...base, ready: false, readyKind: 'status', readyDetail: 'task ttl expired', readyChecks: [], failureReason: 'task ttl expired' };
+  if (processExited) return { ...base, ready: false, readyKind: 'status', readyDetail: 'task process exited', readyChecks: [], failureReason: meta.reason ?? 'task process exited' };
   const ready = await detectReady(spec, opts.timeoutMs ?? 1, opts.autostart);
   return { ...base, ...ready };
 }
@@ -220,6 +269,7 @@ export async function taskRecover(name: string, opts: { autostart?: boolean; tim
     ...spec,
     updatedAt: new Date().toISOString(),
     recoveries: (spec.recoveries ?? 0) + 1,
+    restartCount: (spec.restartCount ?? spec.recoveries ?? 0) + 1,
   };
   writeTask(next);
   const start = await requestWithDaemon({
@@ -234,14 +284,39 @@ export async function taskRecover(name: string, opts: { autostart?: boolean; tim
   return { ...status, recovered: true, start };
 }
 
+export async function taskPrune(opts: TaskPruneOptions = {}): Promise<{ removed: string[]; kept: string[] }> {
+  const removed: string[] = [];
+  const kept: string[] = [];
+  const tasks = listTasks();
+  for (const task of tasks) {
+    const status = await taskStatus(task.name, { autostart: opts.autostart, timeoutMs: 1 }).catch(() => staleTaskStatus(task, 'status failed'));
+    const shouldRemove = Boolean((opts.stale && status.stale) || (opts.expired && status.expired));
+    if (!shouldRemove) {
+      kept.push(task.name);
+      continue;
+    }
+    removed.push(task.name);
+    if (!opts.dryRun) rmSync(taskPath(task.name), { force: true });
+  }
+  return { removed, kept };
+}
+
 function staleTaskStatus(spec: TaskSpec, reason: string): TaskStatus {
+  const lifecycle = lifecycleInfo(spec);
   return {
     name: spec.name,
     session: spec.session,
     command: spec.command,
     cwd: spec.cwd,
+    owner: spec.owner,
+    labels: spec.labels ?? [],
+    ageMs: lifecycle.ageMs,
+    ttlMs: spec.ttlMs,
+    expired: lifecycle.expired,
     live: false,
     stale: true,
+    processExited: false,
+    restartCount: spec.restartCount ?? spec.recoveries ?? 0,
     ready: false,
     readyKind: 'stale',
     readyDetail: 'task metadata exists but its TermDeck session is not live',
@@ -249,6 +324,12 @@ function staleTaskStatus(spec: TaskSpec, reason: string): TaskStatus {
     failureReason: reason,
     status: 'eof',
   };
+}
+
+function lifecycleInfo(spec: TaskSpec): { ageMs: number; expired: boolean } {
+  const started = Date.parse(spec.startedAt);
+  const ageMs = Number.isFinite(started) ? Math.max(0, Date.now() - started) : 0;
+  return { ageMs, expired: spec.ttlMs !== undefined && ageMs > spec.ttlMs };
 }
 
 async function detectReady(spec: TaskSpec, timeoutMs: number, autostart = false): Promise<Pick<TaskStatus, 'ready' | 'readyKind' | 'readyDetail' | 'readyChecks' | 'failureReason' | 'logTail'>> {

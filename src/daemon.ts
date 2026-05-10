@@ -11,7 +11,7 @@ import { socketAccessMode } from './platform.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { replayTranscript } from './replay.js';
 import { TermSession } from './session.js';
-import { listTaskStatuses } from './tasks.js';
+import { taskDashboard } from './tasks.js';
 import { webAppJs, webHtml } from './web.js';
 
 const require = createRequire(import.meta.url);
@@ -325,7 +325,7 @@ function handleWebRequest(req: IncomingMessage, res: { writeHead(code: number, h
     if (url.pathname === '/xterm-addon-fit.js') return send(res, 200, 'text/javascript; charset=utf-8', readFileSync(xtermFitPath));
     if (url.pathname === '/api/sessions') return send(res, 200, 'application/json', JSON.stringify(manager.list()));
     if (url.pathname === '/api/tasks') {
-      void listTaskStatuses({ timeoutMs: 1 }).then((tasks) => send(res, 200, 'application/json', JSON.stringify(tasks))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
+      void taskDashboard({ timeoutMs: 1 }).then((dashboard) => send(res, 200, 'application/json', JSON.stringify(dashboard))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
       return;
     }
     const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);

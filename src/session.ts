@@ -56,6 +56,34 @@ function filterScriptResult(r: WaitResult, begin: string, endPrefix: string): Wa
   return { ...r, output, exitCode: Number.isFinite(exitCode) ? exitCode : undefined };
 }
 
+function filterMarkedRunResult(r: WaitResult, begin: string, endPrefix: string): WaitResult {
+  const endAt = r.output.lastIndexOf(endPrefix);
+  const beginAt = endAt === -1 ? r.output.lastIndexOf(begin) : r.output.lastIndexOf(begin, endAt);
+  if (beginAt === -1) return r;
+  const commandOutputStart = beginAt + begin.length;
+  if (endAt === -1) {
+    const output = r.output.slice(commandOutputStart).replace(/^\r?\n/, '');
+    return { ...r, output };
+  }
+  const afterEnd = r.output.indexOf('__', endAt + endPrefix.length);
+  const codeText = afterEnd === -1 ? undefined : r.output.slice(endAt + endPrefix.length, afterEnd);
+  const output = r.output.slice(commandOutputStart, endAt).replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+  const exitCode = codeText === undefined ? undefined : Number(codeText);
+  return { ...r, output, exitCode: Number.isFinite(exitCode) ? exitCode : undefined };
+}
+
+function markedRun(command: string): { input: string; begin: string; endPrefix: string } {
+  const delimiter = `TERMDECK_RUN_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  if (command.includes(delimiter)) throw new Error('command contains generated marker delimiter');
+  const begin = `__TERMDECK_BEGIN:${delimiter}__`;
+  const endPrefix = `__TERMDECK_EXIT:${delimiter}:`;
+  return {
+    begin,
+    endPrefix,
+    input: `echo; echo ${begin}; { ${command}\n}; __termdeck_rc=$?; echo ${endPrefix}\${__termdeck_rc}__\r`,
+  };
+}
+
 function controlChar(key: string): string {
   const k = key.toLowerCase();
   if (k === 'escape' || k === 'esc' || k === '[') return '\x1b';
@@ -171,7 +199,8 @@ export class TermSession extends EventEmitter {
   }
 
   run(command: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
-    return this.writeAndWait(`${command}\r`, timeoutMs, quiescenceMs, true);
+    const marked = markedRun(command);
+    return this.writeAndWait(marked.input, timeoutMs, quiescenceMs, true, command).then((r) => filterMarkedRunResult(r, marked.begin, marked.endPrefix));
   }
 
   send(data: string, timeoutMs = 30_000, quiescenceMs = 1_000): Promise<WaitResult> {
@@ -277,11 +306,11 @@ printf '\n__TERMDECK_BEGIN:%s__\n' '${delimiter}'; ${shell} /tmp/${delimiter}.sh
     this.writeSessionMeta();
   }
 
-  private writeAndWait(data: string, timeoutMs: number, quiescenceMs: number, logInput: boolean): Promise<WaitResult> {
+  private writeAndWait(data: string, timeoutMs: number, quiescenceMs: number, logInput: boolean, logData = data): Promise<WaitResult> {
     const mark = this.ring.mark();
     if (logInput) {
-      this.emitEvent({ kind: 'input', data });
-      appendFileSync(this.commandsPath, `${JSON.stringify({ tsMs: Date.now(), data })}\n`, { mode: 0o600 });
+      this.emitEvent({ kind: 'input', data: logData });
+      appendFileSync(this.commandsPath, `${JSON.stringify({ tsMs: Date.now(), data: logData })}\n`, { mode: 0o600 });
     }
     this.ptyProcess.write(data);
     this.lastActivityAt = new Date().toISOString();

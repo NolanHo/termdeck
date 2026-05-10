@@ -36,3 +36,19 @@ test('expectPrompt matches current ready state', async () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('run markers return command output and exit code without logging wrapper', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'termdeck-run-marker-'));
+  const s = new TermSession({ id: `marker-${process.pid}`, cwd, rows: 24, cols: 80, shell: 'bash', promptRegex: '.*[$#>]\\s*$' });
+  try {
+    const r = await s.run('printf marker-ok; false', 3_000, 100);
+    assert.equal(r.output, 'marker-ok');
+    assert.equal(r.exitCode, 1);
+    const commands = readFileSync(String(s.metadata().commands), 'utf8');
+    assert.match(commands, /printf marker-ok; false/);
+    assert.doesNotMatch(commands, /TERMDECK_RUN_/);
+  } finally {
+    s.kill();
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

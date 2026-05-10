@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
 import { projectSessionName } from './project.js';
 import { sessionSummary } from './summary.js';
-import { listSessions, listTasks, pruneSessions, taskLogs, taskRecover, taskStart, taskStatus, taskStop } from './tasks.js';
+import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { Response } from './protocol.js';
 
 function stateSummary(res: Response): string {
@@ -434,6 +434,9 @@ task.command('start')
   .argument('<name>')
   .argument('<command>')
   .requiredOption('--cwd <path>')
+  .option('--owner <owner>')
+  .option('--labels <labels>', 'comma-separated labels')
+  .option('--ttl-ms <ms>', 'task metadata TTL', (v) => Number(v))
   .option('--ready-url <url>')
   .option('--ready-port <port>', 'localhost port readiness probe', (v) => Number(v))
   .option('--expect <pattern>')
@@ -451,6 +454,9 @@ task.command('start')
       name,
       command,
       cwd: opts.cwd,
+      owner: opts.owner,
+      labels: opts.labels ? String(opts.labels).split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      ttlMs: opts.ttlMs,
       readyUrl: opts.readyUrl,
       readyPort: opts.readyPort,
       expect: opts.expect,
@@ -491,6 +497,20 @@ task.command('logs')
 task.command('list')
   .option('--json')
   .action(async (opts) => printObject({ tasks: listTasks() }, opts.json));
+
+task.command('dashboard')
+  .option('--timeout-ms <ms>', 'ready probe timeout', (v) => Number(v))
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (opts) => printObject(await taskDashboard({ timeoutMs: opts.timeoutMs, autostart: opts.autostart }), opts.json));
+
+task.command('prune')
+  .option('--stale', 'remove stale task metadata')
+  .option('--expired', 'remove expired task metadata')
+  .option('--dry-run')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (opts) => printObject(await taskPrune({ stale: opts.stale, expired: opts.expired, dryRun: opts.dryRun, autostart: opts.autostart }), opts.json));
 
 task.command('stop')
   .argument('<name>')

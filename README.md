@@ -23,6 +23,7 @@ TermDeck targets agent workflows where the terminal must outlive one CLI invocat
 - Observe-only web UI with JSON REST control endpoints and binary protobuf WebSocket events
 - Prompt/state classification: running, ready, repl, password, confirm, editor, pager, continuation, eof
 - Session artifacts: transcript, events, commands, interactions, metadata, state
+- Shell command markers for `run` output boundaries and exit-code capture
 - Historical inspection: history, inspect, log, events, replay
 - Password input path that avoids command logging
 - Linux foreground process-group signal targeting via `/proc/<pid>/stat` `tpgid`
@@ -156,11 +157,13 @@ termdeck clear-scrollback <session>
 Background task helpers:
 
 ```bash
-termdeck task start <name> <command> --cwd <path> [--ready-url URL] [--ready-port N] [--expect PATTERN]
+termdeck task start <name> <command> --cwd <path> [--owner USER] [--labels a,b] [--ttl-ms N] [--ready-url URL] [--ready-port N] [--expect PATTERN]
 termdeck task status <name>
 termdeck task recover <name>
 termdeck task logs <name> [--lines N]
 termdeck task list
+termdeck task dashboard
+termdeck task prune [--stale] [--expired] [--dry-run]
 termdeck task stop <name>
 ```
 
@@ -186,6 +189,8 @@ env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
 The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `termdeckd`, create a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`. `project_step` goes one level higher by deriving a stable session id from `cwd` and an optional label.
 
 `summary` returns a compact inspection object with a screen tail, output tail, recent events, and likely error lines. Use it when an agent needs state without replaying a large transcript.
+
+Task helpers report stale metadata, expired TTLs, exited backing processes, restart counts, readiness diagnostics, and orphan `task-*` sessions. The web UI surfaces the same dashboard data with filters for active and attention-needed work.
 
 Synchronization:
 

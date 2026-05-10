@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { enrichedResponse, ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
 import { projectSessionName } from './project.js';
 import { sessionSummary } from './summary.js';
-import { listSessions, listTasks, pruneSessions, taskLogs, taskRecover, taskStart, taskStatus, taskStop } from './tasks.js';
+import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { RequestInput, Response } from './protocol.js';
 
 const StatusSchema = z.enum(['running', 'ready', 'repl', 'password', 'confirm', 'editor', 'pager', 'eof', 'unknown']).optional();
@@ -244,6 +244,9 @@ export function createServer(): McpServer {
       name: z.string(),
       command: z.string(),
       cwd: z.string(),
+      owner: z.string().optional(),
+      labels: z.array(z.string()).optional(),
+      ttlMs: z.number().int().positive().optional(),
       readyUrl: z.string().optional(),
       readyPort: z.number().int().positive().optional(),
       expect: z.string().optional(),
@@ -282,6 +285,16 @@ export function createServer(): McpServer {
     description: 'List known background task metadata.',
     inputSchema: {},
   }, async () => result({ tasks: listTasks() }));
+
+  server.registerTool('task_dashboard', {
+    description: 'Return task statuses plus orphan task sessions that have no task metadata.',
+    inputSchema: { timeoutMs, autostart },
+  }, async (args) => result(await taskDashboard({ timeoutMs: args.timeoutMs, autostart: args.autostart })));
+
+  server.registerTool('task_prune', {
+    description: 'Remove stale and/or expired task metadata.',
+    inputSchema: { stale: z.boolean().optional(), expired: z.boolean().optional(), dryRun: z.boolean().optional(), autostart },
+  }, async (args) => result(await taskPrune({ stale: args.stale, expired: args.expired, dryRun: args.dryRun, autostart: args.autostart })));
 
   return server;
 }
