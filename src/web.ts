@@ -8,15 +8,23 @@ export const webHtml = `<!doctype html>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #0b1020; color: #d7dde8; font: 14px sans-serif; overflow: hidden; }
-    #app { height: 100vh; display: grid; grid-template-columns: 220px 1fr; }
+    #app { height: 100vh; display: grid; grid-template-columns: 260px 1fr; }
     #sidebar { border-right: 1px solid #1f2a44; background: #080d1a; display: flex; flex-direction: column; min-width: 0; }
     #brand { height: 46px; padding: 13px 14px; border-bottom: 1px solid #1f2a44; font-weight: 700; }
-    #sessions { padding: 8px; overflow-y: auto; flex: 1; }
+    .section-title { padding: 10px 12px 4px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    #sessions, #tasks { padding: 8px; overflow-y: auto; min-height: 0; }
+    #sessions { flex: 2; }
+    #tasks { flex: 1; border-top: 1px solid #1f2a44; }
     .tab { width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 8px; margin-bottom: 6px; background: transparent; color: #d7dde8; text-align: left; cursor: pointer; }
     .tab:hover { background: #111827; }
     .tab.active { background: #172033; border-color: #334155; }
     .tab-id { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tab-meta { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; }
+    .task { border: 1px solid #1f2a44; border-radius: 6px; padding: 8px; margin-bottom: 6px; background: #0d1424; }
+    .task-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    .task-meta { display: block; margin-top: 3px; color: #94a3b8; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task.ready { border-color: #166534; }
+    .task.stale { border-color: #7f1d1d; }
     #main { min-width: 0; display: grid; grid-template-rows: 46px 1fr; }
     #topbar { border-bottom: 1px solid #1f2a44; display: flex; align-items: center; gap: 14px; padding: 0 14px; min-width: 0; }
     #title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -29,7 +37,10 @@ export const webHtml = `<!doctype html>
   <div id="app">
     <aside id="sidebar">
       <div id="brand">TermDeck</div>
+      <div class="section-title">Sessions</div>
       <div id="sessions"></div>
+      <div class="section-title">Tasks</div>
+      <div id="tasks"></div>
     </aside>
     <main id="main">
       <div id="topbar"><span id="title">No session</span><span id="status">observe-only</span></div>
@@ -44,6 +55,7 @@ export const webAppJs = `import { Terminal } from '/xterm.js';
 import { FitAddon } from '/xterm-addon-fit.js';
 
 const sessionsEl = document.querySelector('#sessions');
+const tasksEl = document.querySelector('#tasks');
 const status = document.querySelector('#status');
 const title = document.querySelector('#title');
 const utf8 = new TextDecoder();
@@ -55,6 +67,7 @@ fit.fit();
 
 let ws;
 let sessions = [];
+let tasks = [];
 let currentSession;
 let lastSeq = 0;
 let reconnectTimer;
@@ -62,9 +75,11 @@ let refreshTimer;
 let resizeTimer;
 
 async function refreshSessions() {
-  const res = await fetch('/api/sessions');
-  sessions = await res.json();
+  const [sessionsRes, tasksRes] = await Promise.all([fetch('/api/sessions'), fetch('/api/tasks')]);
+  sessions = await sessionsRes.json();
+  tasks = await tasksRes.json();
   renderTabs();
+  renderTasks();
   if (!currentSession && sessions.length > 0) openSession(sessions[0].id);
   if (currentSession && !sessions.some((s) => s.id === currentSession)) closeSession();
 }
@@ -81,6 +96,20 @@ function renderTabs() {
     return btn;
   }));
   if (sessions.length === 0) sessionsEl.textContent = 'No sessions';
+}
+
+function renderTasks() {
+  tasksEl.replaceChildren(...tasks.map((t) => {
+    const item = document.createElement('button');
+    item.className = 'task' + (t.ready ? ' ready' : '') + (t.stale ? ' stale' : '');
+    item.type = 'button';
+    item.innerHTML = '<span class="task-name"></span><span class="task-meta"></span>';
+    item.querySelector('.task-name').textContent = t.name;
+    item.querySelector('.task-meta').textContent = (t.ready ? 'ready' : t.stale ? 'stale' : 'starting') + ' ' + (t.readyDetail || t.failureReason || '');
+    item.addEventListener('click', () => openSession(t.session));
+    return item;
+  }));
+  if (tasks.length === 0) tasksEl.textContent = 'No tasks';
 }
 
 async function openSession(id) {
@@ -126,10 +155,19 @@ function connectEvents(id, replayTargetSeq = 0) {
 
 function handleEventMessage(msg) {
   const event = decodeEvent(new Uint8Array(msg.data));
-  if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
-  if (event.kind === 'output') term.write(event.data);
-  if (event.kind === 'state') status.textContent = currentSession + ' ' + event.status + ' seq=' + lastSeq;
-  if (event.kind === 'exit') status.textContent = currentSession + ' exited seq=' + lastSeq;
+    if (event.seq) lastSeq = Math.max(lastSeq, event.seq);
+    if (event.kind === 'output') term.write(event.data);
+    if (event.kind === 'state') status.textContent = currentSession + ' ' + event.status + ' seq=' + lastSeq;
+    if (event.kind === 'exit') status.textContent = currentSession + ' exited seq=' + lastSeq;
+    refreshSessionsSoon();
+}
+
+function refreshSessionsSoon() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    void refreshSessions();
+    refreshTimer = setInterval(refreshSessions, 1000);
+  }, 100);
 }
 
 function sendResize() {
@@ -205,5 +243,5 @@ window.addEventListener('resize', () => {
   sendResize();
 });
 refreshSessions();
-refreshTimer = setInterval(refreshSessions, 3000);
+refreshTimer = setInterval(refreshSessions, 1000);
 window.addEventListener('beforeunload', () => clearInterval(refreshTimer));`;

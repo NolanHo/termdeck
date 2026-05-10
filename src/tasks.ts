@@ -14,6 +14,8 @@ export type TaskSpec = {
   readyPort?: number;
   expect?: string;
   startedAt: string;
+  updatedAt?: string;
+  recoveries?: number;
 };
 
 export type TaskStartOptions = {
@@ -38,14 +40,20 @@ export type TaskStatus = {
   session: string;
   command: string;
   cwd: string;
+  live: boolean;
+  stale: boolean;
+  recovered?: boolean;
   ready: boolean;
-  readyKind: 'url' | 'port' | 'expect' | 'status';
+  readyKind: 'url' | 'port' | 'expect' | 'status' | 'combined' | 'stale';
   readyDetail: string;
+  readyChecks: ReadyCheck[];
+  failureReason?: string;
   status?: Status;
   prompt?: string;
   reason?: string;
   lastSeq?: number;
   transcriptPath?: string;
+  logTail?: string;
 };
 
 export type SessionFilter = {
@@ -56,6 +64,13 @@ export type SessionFilter = {
 };
 
 const tasksDir = join(rootDir, 'tasks');
+
+type ReadyCheck = {
+  kind: 'url' | 'port' | 'expect' | 'status';
+  detail: string;
+  ready: boolean;
+  error?: string;
+};
 
 function safeName(name: string): string {
   const safe = name.replace(/[^A-Za-z0-9_.-]/g, '_');
@@ -95,6 +110,18 @@ export function listTasks(): TaskSpec[] {
     });
 }
 
+export async function listTaskStatuses(opts: { autostart?: boolean; timeoutMs?: number } = {}): Promise<TaskStatus[]> {
+  const statuses: TaskStatus[] = [];
+  for (const task of listTasks()) {
+    try {
+      statuses.push(await taskStatus(task.name, opts));
+    } catch (err) {
+      statuses.push(staleTaskStatus(task, err instanceof Error ? err.message : String(err)));
+    }
+  }
+  return statuses;
+}
+
 export async function listSessions(filter: SessionFilter = {}): Promise<Response> {
   const res = await requestWithDaemon({ op: 'list' }, filter.autostart);
   if (!res.ok || !res.sessions) return res;
@@ -130,6 +157,7 @@ export async function taskStart(opts: TaskStartOptions): Promise<TaskStatus & { 
     readyPort: opts.readyPort,
     expect: opts.expect,
     startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
   await ensureSession(session, {
     cwd: opts.cwd,
@@ -155,18 +183,21 @@ export async function taskStart(opts: TaskStartOptions): Promise<TaskStatus & { 
 export async function taskStatus(name: string, opts: { autostart?: boolean; timeoutMs?: number } = {}): Promise<TaskStatus> {
   const spec = readTask(name);
   const meta = await requestWithDaemon({ op: 'metadata', session: spec.session }, opts.autostart);
+  if (!meta.ok) return staleTaskStatus(spec, meta.error ?? 'task session is not live');
   const base = {
     name: spec.name,
     session: spec.session,
     command: spec.command,
     cwd: spec.cwd,
+    live: true,
+    stale: false,
     status: meta.status,
     prompt: meta.prompt,
     reason: meta.reason,
     lastSeq: meta.lastSeq,
     transcriptPath: typeof meta.metadata?.transcript === 'string' ? meta.metadata.transcript : undefined,
   };
-  const ready = await detectReady(spec, opts.timeoutMs ?? 1);
+  const ready = await detectReady(spec, opts.timeoutMs ?? 1, opts.autostart);
   return { ...base, ...ready };
 }
 
@@ -182,37 +213,94 @@ export async function taskStop(name: string, autostart = false): Promise<{ name:
   return { name, session: spec.session, stopped: response.ok, response };
 }
 
-async function detectReady(spec: TaskSpec, timeoutMs: number): Promise<Pick<TaskStatus, 'ready' | 'readyKind' | 'readyDetail'>> {
-  if (spec.readyUrl) {
-    const ok = await waitUntil(timeoutMs, async () => {
-      try {
-        const res = await fetch(spec.readyUrl as string, { method: 'GET' });
-        return res.ok;
-      } catch {
-        return false;
-      }
-    });
-    return { ready: ok, readyKind: 'url', readyDetail: spec.readyUrl };
-  }
-  if (spec.readyPort) {
-    const ok = await waitUntil(timeoutMs, () => canConnect('127.0.0.1', spec.readyPort as number));
-    return { ready: ok, readyKind: 'port', readyDetail: String(spec.readyPort) };
-  }
-  if (spec.expect) {
-    const res = await requestWithDaemon({ op: 'expect', session: spec.session, pattern: spec.expect, timeoutMs, stripAnsi: true });
-    return { ready: Boolean(res.matched), readyKind: 'expect', readyDetail: spec.expect };
-  }
-  const res = await requestWithDaemon({ op: 'metadata', session: spec.session });
-  return { ready: res.ok && res.status !== 'eof', readyKind: 'status', readyDetail: res.reason ?? res.status ?? 'unknown' };
+export async function taskRecover(name: string, opts: { autostart?: boolean; timeoutMs?: number; quiescenceMs?: number; readyTimeoutMs?: number } = {}): Promise<TaskStatus & { start: Response }> {
+  const spec = readTask(name);
+  await ensureSession(spec.session, { cwd: spec.cwd, autostart: opts.autostart });
+  const next: TaskSpec = {
+    ...spec,
+    updatedAt: new Date().toISOString(),
+    recoveries: (spec.recoveries ?? 0) + 1,
+  };
+  writeTask(next);
+  const start = await requestWithDaemon({
+    op: 'run',
+    session: next.session,
+    command: next.command,
+    timeoutMs: opts.timeoutMs ?? 2_000,
+    quiescenceMs: opts.quiescenceMs ?? 500,
+    stripAnsi: true,
+  }, opts.autostart);
+  const status = await taskStatus(name, { autostart: opts.autostart, timeoutMs: opts.readyTimeoutMs ?? 10_000 });
+  return { ...status, recovered: true, start };
 }
 
-async function waitUntil(timeoutMs: number, probe: () => Promise<boolean>): Promise<boolean> {
+function staleTaskStatus(spec: TaskSpec, reason: string): TaskStatus {
+  return {
+    name: spec.name,
+    session: spec.session,
+    command: spec.command,
+    cwd: spec.cwd,
+    live: false,
+    stale: true,
+    ready: false,
+    readyKind: 'stale',
+    readyDetail: 'task metadata exists but its TermDeck session is not live',
+    readyChecks: [],
+    failureReason: reason,
+    status: 'eof',
+  };
+}
+
+async function detectReady(spec: TaskSpec, timeoutMs: number, autostart = false): Promise<Pick<TaskStatus, 'ready' | 'readyKind' | 'readyDetail' | 'readyChecks' | 'failureReason' | 'logTail'>> {
+  const checks: ReadyCheck[] = [];
+  if (spec.readyUrl) {
+    const result = await waitUntil(timeoutMs, async () => {
+      try {
+        const res = await fetch(spec.readyUrl as string, { method: 'GET' });
+        return { ok: res.ok, error: res.ok ? undefined : `http ${res.status}` };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    });
+    checks.push({ kind: 'url', detail: spec.readyUrl, ready: result.ok, error: result.error });
+  }
+  if (spec.readyPort) {
+    const result = await waitUntil(timeoutMs, async () => {
+      const ok = await canConnect('127.0.0.1', spec.readyPort as number);
+      return { ok, error: ok ? undefined : 'port not accepting connections' };
+    });
+    checks.push({ kind: 'port', detail: String(spec.readyPort), ready: result.ok, error: result.error });
+  }
+  if (spec.expect) {
+    const res = await requestWithDaemon({ op: 'expect', session: spec.session, pattern: spec.expect, timeoutMs, stripAnsi: true }, autostart);
+    checks.push({ kind: 'expect', detail: spec.expect, ready: Boolean(res.matched), error: res.ok ? undefined : res.error });
+  }
+  if (checks.length === 0) {
+    const res = await requestWithDaemon({ op: 'metadata', session: spec.session }, autostart);
+    checks.push({ kind: 'status', detail: res.reason ?? res.status ?? 'unknown', ready: res.ok && res.status !== 'eof', error: res.ok ? undefined : res.error });
+  }
+  const ready = checks.every((check) => check.ready);
+  const failed = checks.find((check) => !check.ready);
+  const logTail = ready ? undefined : (await requestWithDaemon({ op: 'log', session: spec.session, lines: 40 }, autostart).catch(() => undefined))?.logText;
+  return {
+    ready,
+    readyKind: checks.length === 1 ? checks[0].kind : 'combined',
+    readyDetail: checks.map((check) => `${check.kind}:${check.detail}`).join(', '),
+    readyChecks: checks,
+    failureReason: failed ? failed.error ?? `${failed.kind} not ready` : undefined,
+    logTail,
+  };
+}
+
+async function waitUntil(timeoutMs: number, probe: () => Promise<{ ok: boolean; error?: string }>): Promise<{ ok: boolean; error?: string }> {
   const deadline = Date.now() + timeoutMs;
+  let last: { ok: boolean; error?: string } = { ok: false, error: 'timed out' };
   do {
-    if (await probe()) return true;
+    last = await probe();
+    if (last.ok) return last;
     await sleep(100);
   } while (Date.now() < deadline);
-  return false;
+  return last.ok ? last : { ...last, error: last.error ?? 'timed out' };
 }
 
 function canConnect(host: string, port: number): Promise<boolean> {

@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
-import { listSessions, listTasks, pruneSessions, taskLogs, taskStart, taskStatus, taskStop } from './tasks.js';
+import { projectSessionName } from './project.js';
+import { sessionSummary } from './summary.js';
+import { listSessions, listTasks, pruneSessions, taskLogs, taskRecover, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { Response } from './protocol.js';
 
 function stateSummary(res: Response): string {
@@ -127,6 +129,14 @@ program.command('state')
     printStep(stateSnapshot(meta, screen, opts.lines), opts.json ? 'json' : 'default');
   });
 
+program.command('summary')
+  .argument('<session>')
+  .option('--lines <lines>', 'log tail lines', (v) => Number(v), 80)
+  .option('--events <events>', 'recent event count', (v) => Number(v), 20)
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (session, opts) => printResponse(await sessionSummary({ session, lines: opts.lines, events: opts.events, autostart: opts.autostart }), opts.json ? 'json' : 'default'));
+
 program.command('step')
   .argument('<session>')
   .argument('[command]')
@@ -175,6 +185,63 @@ program.command('step')
       default:
         throw new Error(`unknown step op: ${opts.op}`);
     }
+    if (opts.lines > 0) {
+      const screen = await requestWithDaemon({ op: 'screen', session }, opts.autostart);
+      res = stateSnapshot(res, screen, opts.lines);
+    }
+    printStep(res, opts.json ? 'json' : 'default');
+  });
+
+program.command('project-step')
+  .argument('[command]')
+  .option('--cwd <path>', 'project cwd', process.cwd())
+  .option('--name <name>', 'stable project/session label')
+  .option('--shell <shell>')
+  .option('--rows <rows>', 'terminal rows', (v) => Number(v))
+  .option('--cols <cols>', 'terminal cols', (v) => Number(v))
+  .option('--prompt-regex <regex>')
+  .option('--op <op>', 'action: run, poll, send, paste, ctrl, signal', 'run')
+  .option('--enter', 'submit paste input')
+  .option('--timeout-ms <ms>', 'timeout', (v) => Number(v))
+  .option('--startup-timeout-ms <ms>', 'new session prompt timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--lines <lines>', 'include rendered screen tail lines after poll-only steps', (v) => Number(v), 0)
+  .option('--raw')
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (command, opts) => {
+    const session = projectSessionName(opts.cwd, opts.name);
+    await ensureSession(session, { cwd: opts.cwd, shell: opts.shell, rows: opts.rows, cols: opts.cols, promptRegex: opts.promptRegex, autostart: opts.autostart, startupTimeoutMs: opts.startupTimeoutMs });
+    const stripAnsi = !opts.raw;
+    let res: Response;
+    switch (opts.op) {
+      case 'run':
+        if (!command) throw new Error('project-step --op run requires a command');
+        res = await requestWithDaemon({ op: 'run', session, command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'poll':
+        res = await requestWithDaemon({ op: 'poll', session, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'send':
+        if (command === undefined) throw new Error('project-step --op send requires data');
+        res = await requestWithDaemon({ op: 'send', session, data: command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'paste':
+        if (command === undefined) throw new Error('project-step --op paste requires text');
+        res = await requestWithDaemon({ op: 'paste', session, data: command, enter: opts.enter, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'ctrl':
+        if (!command) throw new Error('project-step --op ctrl requires a key');
+        res = await requestWithDaemon({ op: 'ctrl', session, key: command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      case 'signal':
+        if (!command) throw new Error('project-step --op signal requires a signal');
+        res = await requestWithDaemon({ op: 'signal', session, signal: command, timeoutMs: opts.timeoutMs, quiescenceMs: opts.quiescenceMs, stripAnsi }, opts.autostart);
+        break;
+      default:
+        throw new Error(`unknown project-step op: ${opts.op}`);
+    }
+    res = { ...res, metadata: { ...(res.metadata ?? {}), session, cwd: opts.cwd } };
     if (opts.lines > 0) {
       const screen = await requestWithDaemon({ op: 'screen', session }, opts.autostart);
       res = stateSnapshot(res, screen, opts.lines);
@@ -404,6 +471,15 @@ task.command('status')
   .option('--json')
   .option('--autostart', 'start termdeckd when it is not running')
   .action(async (name, opts) => printObject(await taskStatus(name, { timeoutMs: opts.timeoutMs, autostart: opts.autostart }), opts.json));
+
+task.command('recover')
+  .argument('<name>')
+  .option('--timeout-ms <ms>', 'initial command wait timeout', (v) => Number(v))
+  .option('--ready-timeout-ms <ms>', 'ready probe timeout', (v) => Number(v))
+  .option('--quiescence-ms <ms>', 'quiescence', (v) => Number(v))
+  .option('--json')
+  .option('--autostart', 'start termdeckd when it is not running')
+  .action(async (name, opts) => printObject(await taskRecover(name, { timeoutMs: opts.timeoutMs, readyTimeoutMs: opts.readyTimeoutMs, quiescenceMs: opts.quiescenceMs, autostart: opts.autostart }), opts.json));
 
 task.command('logs')
   .argument('<name>')

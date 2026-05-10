@@ -33,6 +33,12 @@ export TERMDECK_HOME="$PWD/.termdeck"
 termdeckd
 ```
 
+For agent usage, `project-step` can derive a stable session id from `cwd`, which avoids passing a manually chosen session name through every call:
+
+```bash
+termdeck project-step 'pwd && ls' --cwd "$PWD" --autostart
+```
+
 For a machine-wide local deployment, write the env var into a wrapper in a directory on `PATH`:
 
 ```bash
@@ -220,6 +226,14 @@ termdeck scrollback main --lines 200
 
 `screen` and `scrollback` serve agent inspection. They strip terminal state to text. The Web UI renders serialized xterm state plus live raw PTY events from the daemon.
 
+Read a compact agent-oriented summary:
+
+```bash
+termdeck summary main --lines 80 --events 20 --json
+```
+
+The summary includes current state, a rendered screen tail, recent output tail, recent event lines, and likely error lines. It is intended for low-token inspection before deciding whether to fetch raw logs or transcript data.
+
 Read metadata:
 
 ```bash
@@ -285,11 +299,12 @@ Task helpers are named TermDeck sessions with small readiness metadata. They do 
 ```bash
 termdeck task start web 'pnpm dev --host 127.0.0.1' --cwd "$PWD" --ready-port 5173 --autostart
 termdeck task status web
+termdeck task recover web
 termdeck task logs web --lines 100
 termdeck task stop web
 ```
 
-Readiness can be detected with `--ready-url`, `--ready-port`, or `--expect`. This is preferred for dev servers because output quiescence alone does not prove the server is ready.
+Readiness can be detected with `--ready-url`, `--ready-port`, or `--expect`. When more than one readiness check is supplied, all checks must pass and `task status` reports per-check diagnostics plus a short log tail on failure. If task metadata exists but the backing session is gone, status reports a stale task; `task recover` recreates the session from metadata and reruns the task command.
 
 ## MCP
 
@@ -301,7 +316,7 @@ command = "termdeck-mcp"
 env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
 ```
 
-Use MCP `step` as the default agent entrypoint. It supports autostart, missing-session creation via `cwd`, terminal operations equivalent to CLI `step --op`, and stable JSON results. CLI and MCP should remain capability-equivalent; add new public terminal operations to both surfaces.
+Use MCP `step` as the default low-level agent entrypoint. It supports autostart, missing-session creation via `cwd`, terminal operations equivalent to CLI `step --op`, and stable JSON results. Use MCP `project_step` when the caller wants TermDeck to derive the session id from `cwd`. CLI and MCP should remain capability-equivalent; add new public terminal operations to both surfaces and keep the parity test passing.
 
 ## Session files
 
@@ -332,7 +347,9 @@ TERMDECK_WEB_PORT=8787 termdeckd
 
 The browser uses:
 
-- JSON REST for low-frequency session metadata and serialized xterm snapshots
+- `GET /api/sessions` for live session metadata
+- `GET /api/tasks` for task readiness and stale/recovery status
+- JSON REST for serialized xterm snapshots
 - binary protobuf WebSocket events for live output after the snapshot sequence
 
 The browser loads a serialized xterm snapshot first, then subscribes with `afterSeq=lastSeq`. Reconnects use `afterSeq` to replay events missed during a disconnect while the daemon retains them.

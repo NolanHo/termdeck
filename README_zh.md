@@ -118,6 +118,7 @@ termdeck configure <session> [--prompt-regex <regex>]
 
 ```bash
 termdeck step <session> [command] [--cwd <path>] [--op run|poll|send|paste|ctrl|signal] [--timeout-ms N] [--startup-timeout-ms N] [--quiescence-ms N] [--lines N] [--autostart]
+termdeck project-step [command] [--cwd <path>] [--name <label>] [--op run|poll|send|paste|ctrl|signal] [--timeout-ms N] [--autostart]
 termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N]
 termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N]
 termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N]
@@ -132,6 +133,7 @@ termdeck signal <session> <signal> [--timeout-ms N] [--quiescence-ms N]
 
 ```bash
 termdeck state <session> [--lines N] [--autostart]
+termdeck summary <session> [--lines N] [--events N] [--autostart]
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -144,7 +146,7 @@ termdeck replay <session> [--lines N]
 termdeck clear-scrollback <session>
 ```
 
-`step` 是面向 agent 的糖衣命令：它可以用 `--cwd` 创建缺失会话，执行一个动作，并固定以一行紧凑状态结束，包含 `status`、`prompt`、`reason`、超时、退出码和截断标记。调用方需要完整对象时使用 `--json`。
+`step` 是面向 agent 的糖衣命令：它可以用 `--cwd` 创建缺失会话，执行一个动作，并固定以一行紧凑状态结束，包含 `status`、`prompt`、`reason`、超时、退出码和截断标记。`project-step` 会从 `cwd` 和可选 label 派生稳定 session id，适合不想手动维护 session 名的 agent。`summary` 返回低 token 的状态、屏幕尾部、输出尾部、近期事件和疑似错误行。调用方需要完整对象时使用 `--json`。
 
 同步等待：
 

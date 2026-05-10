@@ -42,6 +42,22 @@ test('detects pdb prompt as repl', () => {
   });
 });
 
+test('detects node prompt as repl when startup banner is visible', () => {
+  assert.deepEqual(detectState('Welcome to Node.js v22.0.0\nType ".help" for more information.\n> '), {
+    status: 'repl',
+    reason: 'node prompt',
+    prompt: 'node',
+  });
+});
+
+test('detects common SQL prompts as repl', () => {
+  assert.deepEqual(detectState('sqlite> '), {
+    status: 'repl',
+    reason: 'sql prompt',
+    prompt: 'sql',
+  });
+});
+
 test('detects editor markers', () => {
   assert.deepEqual(detectState('file.txt\n-- INSERT --'), {
     status: 'editor',

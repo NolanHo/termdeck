@@ -20,7 +20,7 @@ test('mcp server exposes termdeck tools and can step through daemon', async () =
     await client.connect(transport);
     const tools = await client.listTools();
     const names = tools.tools.map((tool) => tool.name);
-    for (const name of ['list_sessions', 'new_session', 'step', 'run', 'poll', 'state', 'scrollback', 'transcript', 'expect', 'expect_prompt', 'send_input', 'paste', 'ctrl', 'signal', 'kill', 'task_start', 'task_status', 'task_logs', 'task_stop']) {
+    for (const name of ['list_sessions', 'new_session', 'step', 'project_step', 'run', 'poll', 'state', 'summary', 'scrollback', 'transcript', 'expect', 'expect_prompt', 'send_input', 'paste', 'ctrl', 'signal', 'kill', 'task_start', 'task_status', 'task_recover', 'task_logs', 'task_stop']) {
       assert.ok(names.includes(name), `missing MCP tool ${name}`);
     }
     const step = await client.callTool({

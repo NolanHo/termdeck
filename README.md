@@ -70,6 +70,12 @@ Or let an agent step create it on first use:
 termdeck step main 'pwd && ls' --cwd "$PWD" --timeout-ms 5000 --autostart
 ```
 
+Or use a project-derived session name so callers do not have to manage one:
+
+```bash
+termdeck project-step 'pwd && ls' --cwd "$PWD" --timeout-ms 5000 --autostart
+```
+
 Run a command:
 
 ```bash
@@ -119,6 +125,7 @@ Terminal I/O:
 
 ```bash
 termdeck step <session> [command] [--cwd <path>] [--op run|poll|send|paste|ctrl|signal] [--timeout-ms N] [--startup-timeout-ms N] [--quiescence-ms N] [--lines N] [--autostart]
+termdeck project-step [command] [--cwd <path>] [--name <label>] [--op run|poll|send|paste|ctrl|signal] [--timeout-ms N] [--autostart]
 termdeck run <session> <command> [--timeout-ms N] [--quiescence-ms N]
 termdeck script <session> [file] [--inline <script>] [--shell bash] [--timeout-ms N] [--quiescence-ms N]
 termdeck paste <session> [file] [--inline <text>] [--enter] [--timeout-ms N] [--quiescence-ms N]
@@ -133,6 +140,7 @@ Inspection:
 
 ```bash
 termdeck state <session> [--lines N] [--autostart]
+termdeck summary <session> [--lines N] [--events N] [--autostart]
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -150,6 +158,7 @@ Background task helpers:
 ```bash
 termdeck task start <name> <command> --cwd <path> [--ready-url URL] [--ready-port N] [--expect PATTERN]
 termdeck task status <name>
+termdeck task recover <name>
 termdeck task logs <name> [--lines N]
 termdeck task list
 termdeck task stop <name>
@@ -174,9 +183,9 @@ command = "termdeck-mcp"
 env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
 ```
 
-The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `termdeckd`, create a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`.
+The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `termdeckd`, create a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`. `project_step` goes one level higher by deriving a stable session id from `cwd` and an optional label.
 
-`step` is the agent-friendly wrapper: it can create a missing session with `--cwd`, perform one action, and always finishes with a compact state line including `status`, `prompt`, `reason`, timeout, exit-code, and truncation flags. Use `--json` when a caller needs the full response object.
+`summary` returns a compact inspection object with a screen tail, output tail, recent events, and likely error lines. Use it when an agent needs state without replaying a large transcript.
 
 Synchronization:
 
