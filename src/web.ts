@@ -38,7 +38,10 @@ export const webHtml = `<!doctype html>
     .metric-row { display: flex; gap: 12px; min-width: 0; }
     .metric { color: #94a3b8; white-space: nowrap; }
     .metric strong { color: #e2e8f0; }
-    #detail { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #detail { color: #94a3b8; display: flex; gap: 8px; align-items: center; min-width: 0; }
+    #detail-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .action { border: 1px solid #334155; border-radius: 6px; background: #0d1424; color: #cbd5e1; padding: 5px 8px; cursor: pointer; white-space: nowrap; }
+    .action:hover { background: #1e293b; }
     #terminal-wrap { min-height: 0; padding: 8px; }
     #terminal { width: 100%; height: 100%; }
   </style>
@@ -61,7 +64,7 @@ export const webHtml = `<!doctype html>
       <div id="topbar"><span id="title">No session</span><span id="status">observe-only</span></div>
       <div id="dashboard">
         <div class="metric-row" id="metrics"></div>
-        <div id="detail">No selection</div>
+        <div id="detail"><span id="detail-text">No selection</span></div>
       </div>
       <div id="terminal-wrap"><div id="terminal"></div></div>
     </main>
@@ -77,6 +80,7 @@ const sessionsEl = document.querySelector('#sessions');
 const tasksEl = document.querySelector('#tasks');
 const metricsEl = document.querySelector('#metrics');
 const detailEl = document.querySelector('#detail');
+const detailTextEl = document.querySelector('#detail-text');
 const filtersEl = document.querySelector('#filters');
 const status = document.querySelector('#status');
 const title = document.querySelector('#title');
@@ -162,8 +166,38 @@ function renderMetrics() {
   const values = [sessions.length, tasks.length, ready, attention];
   metricsEl.querySelectorAll('strong').forEach((el, i) => { el.textContent = String(values[i]); });
   const task = tasks.find((t) => t.session === currentSession);
-  if (task) detailEl.textContent = task.name + ': ' + taskState(task) + ' ' + (task.failureReason || task.readyDetail || '');
-  else detailEl.textContent = currentSession ? 'Session ' + currentSession : 'No selection';
+  const taskText = task ? task.name + ': ' + taskState(task) + ' ' + (task.failureReason || task.readyDetail || '') : currentSession ? 'Session ' + currentSession : 'No selection';
+  detailTextEl.textContent = taskText;
+  detailEl.querySelectorAll('button.action').forEach((button) => button.remove());
+  if (task) {
+    detailEl.append(actionButton('Recover', () => taskAction(task.name, 'recover')));
+    detailEl.append(actionButton('Stop', () => taskAction(task.name, 'stop')));
+  }
+  if (tasks.some((t) => t.stale || t.expired)) detailEl.append(actionButton('Prune', () => pruneTasks()));
+}
+
+function actionButton(label, handler) {
+  const button = document.createElement('button');
+  button.className = 'action';
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    void handler();
+  });
+  return button;
+}
+
+async function taskAction(name, action) {
+  status.textContent = action + ' ' + name;
+  await fetch('/api/tasks/' + encodeURIComponent(name) + '/' + action, { method: 'POST' });
+  await refreshSessions();
+}
+
+async function pruneTasks() {
+  status.textContent = 'pruning tasks';
+  await fetch('/api/tasks/prune', { method: 'POST' });
+  await refreshSessions();
 }
 
 function taskState(t) {

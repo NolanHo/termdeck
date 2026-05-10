@@ -142,6 +142,8 @@ Inspection:
 ```bash
 termdeck state <session> [--lines N] [--autostart]
 termdeck summary <session> [--lines N] [--events N] [--autostart]
+termdeck last-command <session>
+termdeck sensitive <session> --on|--off
 termdeck screen <session>
 termdeck scrollback <session> [--lines N]
 termdeck transcript <session>
@@ -157,7 +159,7 @@ termdeck clear-scrollback <session>
 Background task helpers:
 
 ```bash
-termdeck task start <name> <command> --cwd <path> [--owner USER] [--labels a,b] [--ttl-ms N] [--ready-url URL] [--ready-port N] [--expect PATTERN]
+termdeck task start <name> <command> --cwd <path> [--owner USER] [--labels a,b] [--ttl-ms N] [--restart-policy never|on-exit|on-failure] [--max-restarts N] [--backoff-ms N] [--ready-url URL] [--ready-port N] [--expect PATTERN]
 termdeck task status <name>
 termdeck task recover <name>
 termdeck task logs <name> [--lines N]
@@ -188,9 +190,11 @@ env = { TERMDECK_HOME = "/path/to/project/.termdeck" }
 
 The MCP `step` tool is the agent-friendly default entrypoint. It can autostart `termdeckd`, create a missing session when `cwd` is supplied, and returns stable JSON fields such as `status`, `reason`, `prompt`, `exitCode`, `timedOut`, `outputTruncated`, `lastSeq`, `transcriptPath`, and `cwd`. `project_step` goes one level higher by deriving a stable session id from `cwd` and an optional label.
 
-`summary` returns a compact inspection object with a screen tail, output tail, recent events, and likely error lines. Use it when an agent needs state without replaying a large transcript.
+`summary` returns a compact inspection object with a screen tail, output tail, recent events, and likely error lines. `last_command` returns structured command id, command text, seq bounds, duration, exit code, timeout flag, and output tail. Use these when an agent needs state without replaying a large transcript.
 
-Task helpers report stale metadata, expired TTLs, exited backing processes, restart counts, readiness diagnostics, and orphan `task-*` sessions. The web UI surfaces the same dashboard data with filters for active and attention-needed work.
+Sensitive mode redacts returned text, log/events views, summaries, and web output while hiding web snapshots. Raw transcripts remain local artifacts and should still be treated as sensitive.
+
+Task helpers report stale metadata, expired TTLs, exited backing processes, restart counts, readiness diagnostics, and orphan `task-*` sessions. Optional restart policies can restart exited tasks on any exit or only non-zero exit. The web UI surfaces the same dashboard data with filters for active and attention-needed work plus safe task stop/recover/prune controls.
 
 Synchronization:
 

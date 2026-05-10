@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
+import { lastCommand } from './commands.js';
 import { projectSessionName } from './project.js';
+import { setSensitiveSession } from './sensitive.js';
 import { sessionSummary } from './summary.js';
 import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { Response } from './protocol.js';
@@ -136,6 +138,21 @@ program.command('summary')
   .option('--json')
   .option('--autostart', 'start termdeckd when it is not running')
   .action(async (session, opts) => printResponse(await sessionSummary({ session, lines: opts.lines, events: opts.events, autostart: opts.autostart }), opts.json ? 'json' : 'default'));
+
+program.command('last-command')
+  .argument('<session>')
+  .option('--json')
+  .action(async (session, opts) => printObject({ command: lastCommand(session) }, opts.json));
+
+program.command('sensitive')
+  .argument('<session>')
+  .option('--on', 'enable sensitive mode')
+  .option('--off', 'disable sensitive mode')
+  .option('--json')
+  .action(async (session, opts) => {
+    if (Boolean(opts.on) === Boolean(opts.off)) throw new Error('pass exactly one of --on or --off');
+    printObject(setSensitiveSession(session, Boolean(opts.on)), opts.json);
+  });
 
 program.command('step')
   .argument('<session>')
@@ -437,6 +454,9 @@ task.command('start')
   .option('--owner <owner>')
   .option('--labels <labels>', 'comma-separated labels')
   .option('--ttl-ms <ms>', 'task metadata TTL', (v) => Number(v))
+  .option('--restart-policy <policy>', 'never, on-exit, or on-failure')
+  .option('--max-restarts <count>', 'maximum automatic restarts', (v) => Number(v))
+  .option('--backoff-ms <ms>', 'minimum delay between automatic restarts', (v) => Number(v))
   .option('--ready-url <url>')
   .option('--ready-port <port>', 'localhost port readiness probe', (v) => Number(v))
   .option('--expect <pattern>')
@@ -457,6 +477,9 @@ task.command('start')
       owner: opts.owner,
       labels: opts.labels ? String(opts.labels).split(',').map((s) => s.trim()).filter(Boolean) : undefined,
       ttlMs: opts.ttlMs,
+      restartPolicy: opts.restartPolicy,
+      maxRestarts: opts.maxRestarts,
+      backoffMs: opts.backoffMs,
       readyUrl: opts.readyUrl,
       readyPort: opts.readyPort,
       expect: opts.expect,

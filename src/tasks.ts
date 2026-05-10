@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { ensureSession, requestWithDaemon, sleep } from './client.js';
+import { lastCommand } from './commands.js';
 import { rootDir } from './paths.js';
 import type { Response, Status } from './protocol.js';
 
@@ -20,6 +21,10 @@ export type TaskSpec = {
   updatedAt?: string;
   recoveries?: number;
   restartCount?: number;
+  restartPolicy?: 'never' | 'on-exit' | 'on-failure';
+  maxRestarts?: number;
+  backoffMs?: number;
+  lastRestartAt?: string;
 };
 
 export type TaskStartOptions = {
@@ -40,6 +45,9 @@ export type TaskStartOptions = {
   rows?: number;
   cols?: number;
   promptRegex?: string;
+  restartPolicy?: 'never' | 'on-exit' | 'on-failure';
+  maxRestarts?: number;
+  backoffMs?: number;
 };
 
 export type TaskStatus = {
@@ -57,6 +65,9 @@ export type TaskStatus = {
   processExited: boolean;
   recovered?: boolean;
   restartCount: number;
+  restartPolicy: 'never' | 'on-exit' | 'on-failure';
+  maxRestarts?: number;
+  backoffMs?: number;
   ready: boolean;
   readyKind: 'url' | 'port' | 'expect' | 'status' | 'combined' | 'stale';
   readyDetail: string;
@@ -196,6 +207,9 @@ export async function taskStart(opts: TaskStartOptions): Promise<TaskStatus & { 
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     restartCount: 0,
+    restartPolicy: opts.restartPolicy ?? 'never',
+    maxRestarts: opts.maxRestarts,
+    backoffMs: opts.backoffMs,
   };
   await ensureSession(session, {
     cwd: opts.cwd,
@@ -223,7 +237,13 @@ export async function taskStatus(name: string, opts: { autostart?: boolean; time
   const meta = await requestWithDaemon({ op: 'metadata', session: spec.session }, opts.autostart);
   if (!meta.ok) return staleTaskStatus(spec, meta.error ?? 'task session is not live');
   const lifecycle = lifecycleInfo(spec);
-  const processExited = meta.status === 'eof';
+  const last = lastCommand(spec.session);
+  const exitCode = typeof meta.metadata?.exitCode === 'number' ? meta.metadata.exitCode : last?.data === spec.command ? last.exitCode : undefined;
+  const processExited = meta.status === 'eof' || (last?.data === spec.command && last.exitCode !== undefined && meta.status !== 'running');
+  if (processExited && shouldAutoRestart(spec, exitCode)) {
+    const restarted = await restartTask(spec, opts);
+    return { ...restarted, recovered: true };
+  }
   const base = {
     name: spec.name,
     session: spec.session,
@@ -238,6 +258,9 @@ export async function taskStatus(name: string, opts: { autostart?: boolean; time
     stale: false,
     processExited,
     restartCount: spec.restartCount ?? spec.recoveries ?? 0,
+    restartPolicy: spec.restartPolicy ?? 'never',
+    maxRestarts: spec.maxRestarts,
+    backoffMs: spec.backoffMs,
     status: meta.status,
     prompt: meta.prompt,
     reason: meta.reason,
@@ -264,12 +287,14 @@ export async function taskStop(name: string, autostart = false): Promise<{ name:
 
 export async function taskRecover(name: string, opts: { autostart?: boolean; timeoutMs?: number; quiescenceMs?: number; readyTimeoutMs?: number } = {}): Promise<TaskStatus & { start: Response }> {
   const spec = readTask(name);
+  await requestWithDaemon({ op: 'kill', session: spec.session }, opts.autostart).catch(() => undefined);
   await ensureSession(spec.session, { cwd: spec.cwd, autostart: opts.autostart });
   const next: TaskSpec = {
     ...spec,
     updatedAt: new Date().toISOString(),
     recoveries: (spec.recoveries ?? 0) + 1,
     restartCount: (spec.restartCount ?? spec.recoveries ?? 0) + 1,
+    lastRestartAt: new Date().toISOString(),
   };
   writeTask(next);
   const start = await requestWithDaemon({
@@ -317,6 +342,9 @@ function staleTaskStatus(spec: TaskSpec, reason: string): TaskStatus {
     stale: true,
     processExited: false,
     restartCount: spec.restartCount ?? spec.recoveries ?? 0,
+    restartPolicy: spec.restartPolicy ?? 'never',
+    maxRestarts: spec.maxRestarts,
+    backoffMs: spec.backoffMs,
     ready: false,
     readyKind: 'stale',
     readyDetail: 'task metadata exists but its TermDeck session is not live',
@@ -324,6 +352,40 @@ function staleTaskStatus(spec: TaskSpec, reason: string): TaskStatus {
     failureReason: reason,
     status: 'eof',
   };
+}
+
+async function restartTask(spec: TaskSpec, opts: { autostart?: boolean; timeoutMs?: number } = {}): Promise<TaskStatus> {
+  const next: TaskSpec = {
+    ...spec,
+    updatedAt: new Date().toISOString(),
+    lastRestartAt: new Date().toISOString(),
+    restartCount: (spec.restartCount ?? spec.recoveries ?? 0) + 1,
+  };
+  writeTask(next);
+  await requestWithDaemon({ op: 'kill', session: next.session }, opts.autostart).catch(() => undefined);
+  await ensureSession(next.session, { cwd: next.cwd, autostart: opts.autostart });
+  await requestWithDaemon({
+    op: 'run',
+    session: next.session,
+    command: next.command,
+    timeoutMs: opts.timeoutMs ?? 2_000,
+    quiescenceMs: 500,
+    stripAnsi: true,
+  }, opts.autostart);
+  return taskStatus(next.name, { autostart: opts.autostart, timeoutMs: opts.timeoutMs });
+}
+
+function shouldAutoRestart(spec: TaskSpec, exitCode: number | undefined): boolean {
+  const policy = spec.restartPolicy ?? 'never';
+  if (policy === 'never') return false;
+  if (policy === 'on-failure' && exitCode === 0) return false;
+  const count = spec.restartCount ?? spec.recoveries ?? 0;
+  if (spec.maxRestarts !== undefined && count >= spec.maxRestarts) return false;
+  if (spec.backoffMs !== undefined && spec.lastRestartAt) {
+    const last = Date.parse(spec.lastRestartAt);
+    if (Number.isFinite(last) && Date.now() - last < spec.backoffMs) return false;
+  }
+  return true;
 }
 
 function lifecycleInfo(spec: TaskSpec): { ageMs: number; expired: boolean } {

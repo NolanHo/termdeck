@@ -8,10 +8,12 @@ import type { Duplex } from 'node:stream';
 import stripAnsi from 'strip-ansi';
 import { encodeEvent, FrameReader, writeFrame, type Event, type Request, type Response } from './protocol.js';
 import { socketAccessMode } from './platform.js';
+import { redactJsonl, redactText } from './redact.js';
 import { rootDir, sessionDir, sessionsDir, socketPath } from './paths.js';
 import { replayTranscript } from './replay.js';
 import { TermSession } from './session.js';
-import { taskDashboard } from './tasks.js';
+import { isSensitiveSession } from './sensitive.js';
+import { taskDashboard, taskPrune, taskRecover, taskStop } from './tasks.js';
 import { webAppJs, webHtml } from './web.js';
 
 const require = createRequire(import.meta.url);
@@ -123,10 +125,10 @@ function inspectSession(id: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
 }
 
-function tailFile(file: string, lines: number): string {
+function tailFile(file: string, lines: number, redact = false): string {
   const text = readFileSync(file, 'utf8');
-  if (!lines || lines <= 0) return text;
-  return text.split('\n').slice(-lines).join('\n');
+  const out = !lines || lines <= 0 ? text : text.split('\n').slice(-lines).join('\n');
+  return redact ? redactText(out) : out;
 }
 
 function eventLines(id: string, afterSeq: number, limit: number): string {
@@ -138,7 +140,8 @@ function eventLines(id: string, afterSeq: number, limit: number): string {
       return false;
     }
   });
-  return rows.slice(0, limit || rows.length).join('\n');
+  const out = rows.slice(0, limit || rows.length).join('\n');
+  return isSensitiveSession(id) ? redactJsonl(out) : out;
 }
 
 async function handle(req: Request, socket?: Socket): Promise<Response> {
@@ -229,7 +232,7 @@ async function handle(req: Request, socket?: Socket): Promise<Response> {
       case 'inspect':
         return { id: req.id, ok: true, metadata: manager.list()?.some((s) => s.id === req.session) ? manager.get(req.session).metadata() : inspectSession(req.session) };
       case 'log':
-        return { id: req.id, ok: true, logText: tailFile(join(sessionDir(req.session), 'transcript.log'), req.lines ?? 200) };
+        return { id: req.id, ok: true, logText: tailFile(join(sessionDir(req.session), 'transcript.log'), req.lines ?? 200, isSensitiveSession(req.session)) };
       case 'events':
         return { id: req.id, ok: true, eventsText: eventLines(req.session, req.afterSeq ?? 0, req.limit ?? 200) };
       case 'replay': {
@@ -328,6 +331,20 @@ function handleWebRequest(req: IncomingMessage, res: { writeHead(code: number, h
       void taskDashboard({ timeoutMs: 1 }).then((dashboard) => send(res, 200, 'application/json', JSON.stringify(dashboard))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
       return;
     }
+    if (req.method === 'POST') {
+      const taskActionMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(stop|recover)$/);
+      if (taskActionMatch) {
+        const name = decodeURIComponent(taskActionMatch[1]);
+        const action = taskActionMatch[2];
+        const run = action === 'stop' ? taskStop(name, true) : taskRecover(name, { autostart: true });
+        void run.then((body) => send(res, 200, 'application/json', JSON.stringify(body))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
+        return;
+      }
+      if (url.pathname === '/api/tasks/prune') {
+        void taskPrune({ stale: true, expired: true, autostart: true }).then((body) => send(res, 200, 'application/json', JSON.stringify(body))).catch((err: unknown) => send(res, 500, 'text/plain; charset=utf-8', err instanceof Error ? err.message : String(err)));
+        return;
+      }
+    }
     const screenMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/screen$/);
     if (screenMatch) {
       const s = manager.get(decodeURIComponent(screenMatch[1]));
@@ -336,7 +353,7 @@ function handleWebRequest(req: IncomingMessage, res: { writeHead(code: number, h
     const snapshotMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/snapshot$/);
     if (snapshotMatch) {
       const s = manager.get(decodeURIComponent(snapshotMatch[1]));
-      return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols, snapshot: s.snapshot() }));
+      return send(res, 200, 'application/json', JSON.stringify({ status: s.status().status, lastSeq: s.info().lastSeq, rows: s.rows, cols: s.cols, sensitive: s.isSensitive(), snapshot: s.snapshot() }));
     }
     send(res, 404, 'text/plain; charset=utf-8', 'not found');
   } catch (err) {
@@ -377,9 +394,14 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
     }
   });
   const onEvent = (event: Event) => {
-    if (event.session === session) socket.write(wsBinary(encodeEvent(event)));
+    if (event.session !== session) return;
+    const out = s.isSensitive() && (event.kind === 'output' || event.kind === 'input') ? { ...event, data: redactText(event.data) } as Event : event;
+    socket.write(wsBinary(encodeEvent(out)));
   };
-  for (const event of s.eventsAfter(afterSeq)) socket.write(wsBinary(encodeEvent(event)));
+  for (const event of s.eventsAfter(afterSeq)) {
+    const out = s.isSensitive() && (event.kind === 'output' || event.kind === 'input') ? { ...event, data: redactText(event.data) } as Event : event;
+    socket.write(wsBinary(encodeEvent(out)));
+  }
   s.on('event', onEvent);
   socket.on('close', () => s.off('event', onEvent));
 }

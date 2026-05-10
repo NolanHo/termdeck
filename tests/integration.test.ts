@@ -47,6 +47,18 @@ test('daemon cli and web smoke', async () => {
     const res = await fetch('http://127.0.0.1:8876/api/sessions');
     assert.equal(res.status, 200);
     assert.match(await res.text(), /int/);
+    await run('tsx', ['src/cli.ts', 'task', 'start', 'webtask', 'printf web-task-ok', '--cwd', process.cwd(), '--expect', 'web-task-ok', '--json'], env);
+    const tasksRes = await fetch('http://127.0.0.1:8876/api/tasks');
+    assert.equal(tasksRes.status, 200);
+    const tasks = await tasksRes.json() as { tasks?: Array<{ name: string; ready: boolean }>; orphanSessions?: unknown[] };
+    assert.ok(tasks.tasks?.some((task) => task.name === 'webtask'));
+    assert.ok(Array.isArray(tasks.orphanSessions));
+    const stopRes = await fetch('http://127.0.0.1:8876/api/tasks/webtask/stop', { method: 'POST' });
+    assert.equal(stopRes.status, 200);
+    const restartOut = await run('tsx', ['src/cli.ts', 'task', 'start', 'restart-once', 'false', '--cwd', process.cwd(), '--restart-policy', 'on-failure', '--max-restarts', '1', '--json'], env);
+    const restart = JSON.parse(restartOut) as { restartCount?: number; processExited?: boolean };
+    assert.equal(restart.restartCount, 1);
+    assert.equal(restart.processExited, true);
   } finally {
     daemon.kill('SIGTERM');
     rmSync(home, { recursive: true, force: true });

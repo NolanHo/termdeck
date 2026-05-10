@@ -4,6 +4,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TermSession } from '../src/session.js';
+import { lastCommand } from '../src/commands.js';
+import { setSensitiveSession } from '../src/sensitive.js';
 
 test('session writes metadata state command and interaction logs', async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'termdeck-meta-'));
@@ -47,6 +49,26 @@ test('run markers return command output and exit code without logging wrapper', 
     const commands = readFileSync(String(s.metadata().commands), 'utf8');
     assert.match(commands, /printf marker-ok; false/);
     assert.doesNotMatch(commands, /TERMDECK_RUN_/);
+    const last = lastCommand(s.id);
+    assert.equal(last?.data, 'printf marker-ok; false');
+    assert.equal(last?.exitCode, 1);
+    assert.match(last?.outputTail ?? '', /marker-ok/);
+  } finally {
+    s.kill();
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('sensitive sessions redact returned text and last command', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'termdeck-sensitive-'));
+  const s = new TermSession({ id: `sensitive-${process.pid}`, cwd, rows: 24, cols: 80, shell: 'bash', promptRegex: '.*[$#>]\\s*$' });
+  try {
+    setSensitiveSession(s.id, true);
+    const r = await s.run('printf "api_key=secret-value"', 3_000, 100);
+    assert.doesNotMatch(r.output, /secret-value/);
+    assert.match(r.output, /\[REDACTED\]/);
+    const last = lastCommand(s.id);
+    assert.doesNotMatch(JSON.stringify(last), /secret-value/);
   } finally {
     s.kill();
     rmSync(cwd, { recursive: true, force: true });

@@ -3,7 +3,9 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { enrichedResponse, ensureSession, request, requestWithDaemon, stateSnapshot } from './client.js';
+import { lastCommand } from './commands.js';
 import { projectSessionName } from './project.js';
+import { setSensitiveSession } from './sensitive.js';
 import { sessionSummary } from './summary.js';
 import { listSessions, listTasks, pruneSessions, taskDashboard, taskLogs, taskRecover, taskPrune, taskStart, taskStatus, taskStop } from './tasks.js';
 import type { RequestInput, Response } from './protocol.js';
@@ -227,6 +229,14 @@ export function createServer(): McpServer {
     description: 'Return a compact agent-oriented session summary with screen tail, output tail, recent events, and likely error lines.',
     inputSchema: { session, lines: z.number().int().positive().optional().default(80), events: z.number().int().positive().optional().default(20), autostart },
   }, async (args) => responseResult(await sessionSummary({ session: args.session, lines: args.lines, events: args.events, autostart: args.autostart })));
+  server.registerTool('last_command', {
+    description: 'Return the last structured command record for a session.',
+    inputSchema: { session },
+  }, async (args) => result({ command: lastCommand(args.session) }));
+  server.registerTool('sensitive', {
+    description: 'Enable or disable sensitive mode for a session. Sensitive sessions redact returned text and hide web snapshots.',
+    inputSchema: { session, enabled: z.boolean() },
+  }, async (args) => result(setSensitiveSession(args.session, args.enabled)));
   registerRequestTool(server, 'metadata', 'Return session metadata.', { session, autostart }, (args) => ({ op: 'metadata', session: s(args, 'session') }), { autostartArg: true });
   registerRequestTool(server, 'history', 'List persisted session metadata.', { autostart }, () => ({ op: 'history' }), { autostartArg: true });
   registerRequestTool(server, 'inspect', 'Inspect live or historical session metadata.', { session, autostart }, (args) => ({ op: 'inspect', session: s(args, 'session') }), { autostartArg: true });
@@ -247,6 +257,9 @@ export function createServer(): McpServer {
       owner: z.string().optional(),
       labels: z.array(z.string()).optional(),
       ttlMs: z.number().int().positive().optional(),
+      restartPolicy: z.enum(['never', 'on-exit', 'on-failure']).optional(),
+      maxRestarts: z.number().int().nonnegative().optional(),
+      backoffMs: z.number().int().nonnegative().optional(),
       readyUrl: z.string().optional(),
       readyPort: z.number().int().positive().optional(),
       expect: z.string().optional(),

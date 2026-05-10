@@ -44,6 +44,8 @@ test('CLI and MCP expose equivalent public capability surface', async () => {
     ['new', 'new_session'],
     ['state', 'state'],
     ['summary', 'summary'],
+    ['last-command', 'last_command'],
+    ['sensitive', 'sensitive'],
     ['step', 'step'],
     ['project-step', 'project_step'],
     ['run', 'run'],
