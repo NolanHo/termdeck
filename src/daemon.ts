@@ -59,6 +59,10 @@ class SessionManager {
     return [...this.sessions.values()].map((s) => s.info());
   }
 
+  has(id: string): boolean {
+    return this.sessions.has(id);
+  }
+
   kill(id: string): void {
     const s = this.get(id);
     s.kill();
@@ -405,10 +409,19 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
     socket.destroy();
     return;
   }
+  if (!manager.has(session)) {
+    socket.write(['HTTP/1.1 404 Not Found', 'Connection: close', '', 'unknown session'].join('\r\n'));
+    socket.destroy();
+    return;
+  }
   const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${accept}`, '', ''].join('\r\n'));
   const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0);
   const s = manager.get(session);
+  socket.on('error', (err: Error) => {
+    console.error(`termdeck websocket error: ${err.message}`);
+    s.off('event', onEvent);
+  });
   socket.on('data', (chunk: Buffer) => {
     try {
       handleWebSocketData(chunk, s);
@@ -418,10 +431,16 @@ function handleWebSocketUpgrade(req: IncomingMessage, socket: Duplex): void {
   });
   const onEvent = (event: Event) => {
     if (event.session !== session) return;
-    socket.write(wsBinary(encodeEvent(event)));
+    if (!socket.destroyed && !socket.write(wsBinary(encodeEvent(event)))) {
+      s.off('event', onEvent);
+      socket.destroy();
+    }
   };
   for (const event of s.eventsAfter(afterSeq)) {
-    socket.write(wsBinary(encodeEvent(event)));
+    if (!socket.write(wsBinary(encodeEvent(event)))) {
+      socket.destroy();
+      return;
+    }
   }
   s.on('event', onEvent);
   socket.on('close', () => s.off('event', onEvent));
